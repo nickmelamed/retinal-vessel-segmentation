@@ -27,6 +27,8 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Without this the action needs the Claude GitHub App installed.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -35,8 +37,8 @@ jobs:
             docs/SPEC.md for the design, focusing on the sections the changed
             files implement.
 
-            Look for, in order of importance:
-            1. Breaks of the non-negotiable rules in CLAUDE.md, especially
+            Look for these problems, most important first:
+            1. Violations of the non-negotiable rules in CLAUDE.md, especially
                held-out or external data informing any choice, numbers in docs
                that do not come from results/, clinical framing, and data or
                images committed to git.

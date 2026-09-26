@@ -56,7 +56,8 @@ The owner approved a CI workflow in which Claude reviews each same-repository
 pull request against the project rules and the SPEC. It needs an
 `ANTHROPIC_API_KEY` repository secret, which the owner adds by hand (see
 docs/REPO_SETTINGS.md). Pull requests from forks are skipped because secrets
-are not available to them.
+are not available to them. The workflow passes the built-in `GITHUB_TOKEN`, so
+the Claude GitHub App does not need to be installed.
 
 ## D-007 Database schema version 1 (2026-09-26)
 
