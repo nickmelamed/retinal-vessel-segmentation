@@ -15,6 +15,11 @@ from tests.fixtures.synthetic_drive import (
 )
 
 
+def _read(path: Path) -> np.ndarray:
+    with Image.open(path) as im:
+        return np.asarray(im)
+
+
 def _files(root: Path) -> dict[str, bytes]:
     return {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()}
 
@@ -30,22 +35,22 @@ def test_layout_matches_drive_names(synthetic_data_root: Path) -> None:
 
 def test_formats_match_drive(synthetic_data_root: Path) -> None:
     image_path, label_path, mask_path = training_paths(synthetic_data_root / "DRIVE", 21)
-    image = Image.open(image_path)
-    assert image.mode == "RGB"
-    assert image.size == (WIDTH, HEIGHT)
+    with Image.open(image_path) as image:
+        assert image.mode == "RGB"
+        assert image.size == (WIDTH, HEIGHT)
     for path in (label_path, mask_path):
-        gif = Image.open(path)
-        assert gif.mode == "L"
-        assert gif.size == (WIDTH, HEIGHT)
-        assert set(np.unique(np.asarray(gif))) == {0, 255}
+        with Image.open(path) as gif:
+            assert gif.mode == "L"
+            assert gif.size == (WIDTH, HEIGHT)
+            assert set(np.unique(np.asarray(gif))) == {0, 255}
 
 
 def test_labels_lie_inside_the_fov(synthetic_data_root: Path) -> None:
     drive = synthetic_data_root / "DRIVE"
     for image_id in TRAIN_IDS:
         _, label_path, mask_path = training_paths(drive, image_id)
-        label = np.asarray(Image.open(label_path)) > 0
-        mask = np.asarray(Image.open(mask_path)) > 0
+        label = _read(label_path) > 0
+        mask = _read(mask_path) > 0
         assert label.any()
         assert not (label & ~mask).any()
         assert np.array_equal(mask, fov_mask())
@@ -53,7 +58,7 @@ def test_labels_lie_inside_the_fov(synthetic_data_root: Path) -> None:
 
 def test_image_is_black_outside_the_fov(synthetic_data_root: Path) -> None:
     image_path, _ = official_test_paths(synthetic_data_root / "DRIVE", 1)
-    image = np.asarray(Image.open(image_path))
+    image = _read(image_path)
     assert not image[~fov_mask()].any()
 
 
