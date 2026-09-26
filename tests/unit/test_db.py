@@ -173,3 +173,10 @@ def test_metrics_must_lie_in_range(conn: sqlite3.Connection) -> None:
     with pytest.raises(sqlite3.IntegrityError):
         insert(conn, "per_image_metrics", {**row, "dice": 1.5})
     insert(conn, "per_image_metrics", {**row, "dice": 0.8})
+
+
+def test_connect_creates_the_results_directory(tmp_path: Path) -> None:
+    path = tmp_path / "results" / "nested" / "experiments.db"
+    with closing(connect(path)):
+        pass
+    assert path.is_file()

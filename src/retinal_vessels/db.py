@@ -10,12 +10,13 @@ SCHEMA_VERSION = 1
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "sql" / "schema.sql"
 
 
-def connect(path: Path | str) -> sqlite3.Connection:
-    """Open a connection with foreign keys enforced.
+def connect(path: Path) -> sqlite3.Connection:
+    """Open a connection with foreign keys enforced, creating the parent directory.
 
     SQLite leaves foreign keys off by default, per connection, so every
     connection must go through here.
     """
+    path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
