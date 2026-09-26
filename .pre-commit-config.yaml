@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-style
+        name: comment and doc style
+        entry: python3 scripts/agent/check_style.py
+        language: system
+        types_or: [python, markdown]

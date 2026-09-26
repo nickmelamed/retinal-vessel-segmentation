@@ -1,0 +1,2 @@
+# Fast checks that must pass before Claude may end a turn.
+make agent-check

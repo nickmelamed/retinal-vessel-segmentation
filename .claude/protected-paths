@@ -1,0 +1,22 @@
+# Edits to these paths need the owner's approval, even in auto mode.
+# One glob per line, relative to the repo root. Text after "  #" is the reason.
+.claude/settings.json  # agent permissions and hooks
+.claude/protected-paths  # this list
+scripts/agent/*  # the checks that gate Claude's work
+.pre-commit-config.yaml  # commit hooks
+.github/workflows/*  # CI
+*.lock  # locked dependencies
+
+# Evaluation design (SPEC section 5). Changes need the owner's approval.
+src/retinal_vessels/metrics.py  # evaluation design, section 5
+src/retinal_vessels/data.py  # fold construction, section 5
+src/retinal_vessels/external.py  # zero-shot external evaluation, section 5
+src/retinal_vessels/fov.py  # FOV rule for external datasets, section 5
+configs/final.yaml  # frozen model settings
+configs/external.yaml  # external validation settings
+sql/schema.sql  # system of record
+sql/queries/04_leakage_audit.sql  # leakage audit
+sql/queries/09_frozen_model_audit.sql  # frozen model audit
+data/CHECKSUMS.sha256  # data provenance
+requirements.txt  # generated from uv.lock
+docs/SPEC.md  # the design spec

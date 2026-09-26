@@ -1,0 +1,10 @@
+# Dataset files are never committed. Only the checksum manifest is.
+data/*
+!data/CHECKSUMS.sha256
+
+# Local Claude Code state
+.claude/.gate-state.json
+.claude/settings.local.json
+
+.DS_Store
+__pycache__/
