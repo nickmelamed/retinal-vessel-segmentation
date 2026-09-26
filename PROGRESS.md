@@ -4,7 +4,7 @@
 
 At the end of each phase, run /finish-phase.
 
-Phase 0 must extend the `agent-check` target in the Makefile to the full list below. It currently runs only `scripts/agent/check_style.py`, because ruff, mypy, and pytest are not installed until phase 0.
+Phase 0 extended the `agent-check` target in the Makefile to the full list below, with each tool run through `uv run` (D-003).
 
 ```make
 agent-check:  ## Fast checks the Claude Code Stop hook runs
@@ -23,7 +23,7 @@ The owner approved two additions on 2026-09-26. Build them in the phases named h
 - Phase 1: run `mutmut` on `data.py` and the fold code, and add tests for any surviving mutants.
 - Phase 3: add Hypothesis property tests for `metrics.py`. Dice stays in [0, 1], pixels outside the FOV never change a score, and a perfect prediction scores 1. Run `mutmut` on `metrics.py`.
 
-- [ ] **0. Setup:** package skeleton, `pyproject.toml`, `uv.lock`, generated `requirements.txt`, `.python-version`, `.gitignore`, `.gitattributes`, pre-commit hooks, `Makefile`, CI workflow, pull request template, synthetic fixtures, `DECISIONS.md`, `CHANGELOG.md`, `CITATION.cff`, data download instructions, `make check-data` with checksums, database schema, provenance module. CI green on an empty-but-wired pipeline.
+- [x] **0. Setup:** package skeleton, `pyproject.toml`, `uv.lock`, generated `requirements.txt`, `.python-version`, `.gitignore`, `.gitattributes`, pre-commit hooks, `Makefile`, CI workflow, pull request template, synthetic fixtures, `DECISIONS.md`, `CHANGELOG.md`, `CITATION.cff`, data download instructions, `make check-data` with checksums, database schema, provenance module. CI green on an empty-but-wired pipeline.
 - [ ] **1. Data:** DRIVE loader adapter with pathology metadata, validation, folds, preprocessing, patch sampling, and their tests.
 - [ ] **2. Model and training:** U-Net, losses, resumable CV training with database logging and run manifests, `colab_runner.ipynb`, the smoke integration test, and the resumability tests.
 - [ ] **3. Evaluation:** sliding-window inference, all metrics, calibration, thin/thick sensitivity, and SQL queries 01–05.
