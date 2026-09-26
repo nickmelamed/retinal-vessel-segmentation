@@ -1,12 +1,12 @@
 # Retinal vessel segmentation on DRIVE: a self-directed project
 
 A learning project on public data. A small U-Net segments blood vessels in the
-DRIVE color fundus photographs, and is evaluated with image-level
+DRIVE color fundus photographs and is evaluated with image-level
 cross-validation. Later phases add external validation on other retinal
 datasets, per-pixel uncertainty maps, a SQL audit trail, statistics in R, and
 an LSTM autoencoder that detects simulated narrowings in vessel width profiles.
 
-Not for clinical use. Nothing here has been clinically validated.
+Not for clinical use.
 
 ## Status
 
@@ -16,8 +16,8 @@ There are no model results yet.
 
 ## Setup
 
-Requires [uv](https://docs.astral.sh/uv/). Python `3.13` is installed by uv
-from `.python-version`.
+Requires [uv](https://docs.astral.sh/uv/), which installs Python `3.13` from
+`.python-version`.
 
 ```bash
 make setup        # install the locked environment and git hooks
