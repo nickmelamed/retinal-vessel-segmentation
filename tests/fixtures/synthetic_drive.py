@@ -1,7 +1,7 @@
 """Write a small synthetic dataset with DRIVE's file names, sizes, and formats.
 
 CI never sees real DRIVE images, so tests run on these instead. Each image is
-a dark disc (the FOV) on black, with darker random line segments standing in
+a reddish-brown disc (the FOV) on black, with darker random line segments standing in
 for vessels. Labels mark the segments inside the FOV. Like the real files,
 images are RGB TIFFs and labels and masks are grayscale GIFs holding 0 and 255.
 """
@@ -73,8 +73,8 @@ def _sample(rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray, np.ndarra
 
 
 def _save_gif(binary: np.ndarray, path: Path) -> None:
-    # Pillow's default palette optimisation writes a two-colour "P" image;
-    # without it the file reads back as "L" with 0 and 255, like DRIVE's.
+    # Pillow's palette optimization writes a two-color "P" image. Without it the
+    # GIF reads back as "L" with 0 and 255, like DRIVE's.
     Image.fromarray(np.where(binary, ON, 0).astype(np.uint8)).save(path, optimize=False)
 
 

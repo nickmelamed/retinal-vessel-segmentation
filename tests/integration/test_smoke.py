@@ -1,9 +1,7 @@
 """End-to-end run on synthetic data.
 
-In phase 0 the pipeline is only wired, not trained: synthetic data is written,
-its checksums are recorded and verified through the real CLI, the database is
-created, and a run manifest is written. Later phases extend this same test to
-train, predict, evaluate, and build tables.
+Write synthetic data, record and verify its checksums through the real
+``check_data.py`` CLI, create the database, and write a run manifest.
 """
 
 import json

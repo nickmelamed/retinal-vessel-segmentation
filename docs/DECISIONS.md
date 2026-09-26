@@ -27,8 +27,8 @@ reason `make agent-check` runs the list in PROGRESS.md with a `uv run` prefix.
 TensorFlow is locked from phase 0 so that one lock covers the whole stack and
 `requirements.txt` is complete for Colab. CI caches the wheels through uv.
 
-The owner approved `hypothesis` and `mutmut` as dev dependencies on
-2026-09-26.
+`hypothesis` (property-based tests) and `mutmut` (mutation testing) are dev
+dependencies, approved by the owner on 2026-09-26.
 
 ## D-004 Checksums are verified, never rewritten (2026-09-26)
 

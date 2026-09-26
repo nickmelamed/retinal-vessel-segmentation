@@ -28,7 +28,7 @@ COLAB_ENV_VAR = "COLAB_RELEASE_TAG"
 
 
 def sha256_file(path: Path) -> str:
-    """Return the hex SHA-256 of a file, read in chunks."""
+    """Return the hex SHA-256 of a file."""
     digest = hashlib.sha256()
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(CHUNK_BYTES), b""):
@@ -77,7 +77,7 @@ def compute_checksums(locations: Mapping[str, Path]) -> dict[str, str]:
 
 
 def data_hash(entries: Mapping[str, str]) -> str:
-    """Return one hash summarising a set of checksum entries, independent of order."""
+    """Return one hash summarizing a set of checksum entries, independent of order."""
     return hashlib.sha256(format_checksums(entries).encode("utf-8")).hexdigest()
 
 

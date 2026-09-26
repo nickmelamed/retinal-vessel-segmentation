@@ -42,8 +42,8 @@ packages = ["src/retinal_vessels"]
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-# The agent hook scripts are protected, stdlib-only tooling kept outside the
-# package, and are checked by their own review rather than this config.
+# Stdlib-only hook scripts outside the package. Excluded so ruff format never
+# rewrites them (D-008).
 extend-exclude = ["scripts/agent"]
 
 [tool.ruff.lint]
@@ -66,8 +66,8 @@ filterwarnings = [
     "error::pytest.PytestUnraisableExceptionWarning",
 ]
 markers = [
-    "slow: takes more than a few seconds; skipped by make agent-check",
-    "smoke: end-to-end run on synthetic data; run by make smoke",
+    "slow: takes more than a few seconds, skipped by make agent-check",
+    "smoke: end-to-end run on synthetic data, run by make smoke",
 ]
 
 [tool.coverage.run]

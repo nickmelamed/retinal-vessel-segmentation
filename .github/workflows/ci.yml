@@ -38,4 +38,4 @@ jobs:
       - name: Check requirements.txt matches uv.lock
         run: make lock-check
 
-      # The R report render check joins in phase 8 (docs/DECISIONS.md).
+      # The R report render check is added in phase 8 (D-005).

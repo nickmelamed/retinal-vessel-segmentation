@@ -29,14 +29,9 @@ def setup_logging(level: int = logging.INFO) -> None:
 def set_seed(seed: int, deterministic: bool = False) -> bool:
     """Seed Python, NumPy, and TensorFlow, and optionally force deterministic ops.
 
-    TensorFlow is imported here rather than at module level so that code which
-    never trains (checksums, the database, tests) does not pay its import cost.
-
-    Returns
-    -------
-    bool
-        Whether deterministic ops were enabled. Record this in the run manifest,
-        because GPU results are only bit-for-bit repeatable when it is true.
+    Return whether deterministic ops were enabled. The run manifest records
+    this, since GPU results repeat bit for bit only when it is true.
+    TensorFlow is imported here so code that never trains skips its import cost.
     """
     if seed < 0:
         raise ValueError(f"seed must be non-negative, got {seed}")

@@ -38,4 +38,4 @@ Releases use semantic versioning with annotated tags (`v0.1.0` and so on) and a 
 
 ### What Claude Code may do without asking
 
-Claude Code may create branches, stage, and commit locally, following the rules above. It asks first before pushing, opening or merging pull requests, creating tags or releases, or changing hooks, CI, or the lockfile. It never force-pushes, rewrites pushed history, or amends a commit that has been pushed.
+Claude Code may create branches, stage, and commit locally, following the rules above. It asks before pushing, opening or merging pull requests, creating tags or releases, or changing hooks, CI, or the lockfile. It never force-pushes, rewrites pushed history, or amends a commit that has been pushed.
