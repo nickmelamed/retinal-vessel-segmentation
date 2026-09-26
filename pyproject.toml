@@ -42,6 +42,9 @@ packages = ["src/retinal_vessels"]
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+# The agent hook scripts are protected, stdlib-only tooling kept outside the
+# package, and are checked by their own review rather than this config.
+extend-exclude = ["scripts/agent"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
