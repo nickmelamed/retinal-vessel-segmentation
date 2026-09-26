@@ -21,7 +21,12 @@ Close out the current phase (see PROGRESS.md).
    stand, what the next phase must deliver, decisions to raise with the
    owner, and working notes. Replace anything that is out of date.
 8. Commit the fixes as atomic Conventional Commits.
-9. Give the owner a short summary covering what was built, the commits,
-   decisions logged, anything left open from review, and the evidence that
-   checks pass.
-10. Ask before pushing or opening the pull request (merge commit, not squash).
+9. List any multi-step procedure you repeated during the phase, and any
+   instruction the owner gave more than once. For each, draft a skill
+   (name, description, and steps) that would do it, and show the draft to
+   the owner. Do not create it in `.claude/skills/` until the owner
+   approves. Say so plainly if there was nothing repeated.
+10. Give the owner a short summary covering what was built, the commits,
+    decisions logged, anything left open from review, and the evidence that
+    checks pass.
+11. Ask before pushing or opening the pull request (merge commit, not squash).
