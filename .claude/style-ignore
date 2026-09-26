@@ -4,3 +4,6 @@
 docs/SPEC.md
 # Copied verbatim from the original CLAUDE.md section 15. Restyle it in phase 0.
 docs/CONTRIBUTING.md
+# Agent-facing handoff notes name CLAUDE.md on purpose. The default *handoff*.md
+# pattern is case-sensitive, so list the uppercase name too.
+HANDOFF.md
