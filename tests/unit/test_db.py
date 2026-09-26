@@ -128,6 +128,7 @@ def test_foreign_keys_are_enforced(conn: sqlite3.Connection) -> None:
         ("images", {**IMAGE, "has_labels": 0}),
         ("runs", {**RUN, "git_dirty": 1, "is_reported": 1}),
         ("runs", {**RUN, "seed": "zero"}),
+        ("runs", {**RUN, "applied_threshold": 1.5}),
     ],
 )
 def test_check_constraints_reject_bad_rows(

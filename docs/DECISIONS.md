@@ -76,8 +76,11 @@ The precision metric is stored as `precision_score` because `PRECISION` is an
 SQL keyword.
 
 `runs.frozen_model_id` links an external evaluation to its row in
-`frozen_models`, which query 09 checks. `images.split` takes `external` for
-datasets that have no official split.
+`frozen_models`, and `runs.applied_threshold` records the threshold it
+actually used. Query 09 compares both with the frozen record, so a run that
+applied any other threshold is caught. Section 8 requires that check, and
+`thresholds` cannot hold it because external runs have no fold.
+`images.split` takes `external` for datasets that have no official split.
 
 The anomaly module tables are left for schema version 2 in phase 9, when
 section 10's design fixes their columns.

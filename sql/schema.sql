@@ -61,8 +61,10 @@ CREATE TABLE IF NOT EXISTS runs (
     gpu_type TEXT NOT NULL,
     compute_platform TEXT NOT NULL,
     deterministic_ops INTEGER NOT NULL CHECK (deterministic_ops IN (0, 1)),
-    -- Set for external evaluations. The frozen model audit checks it.
+    -- Set for external evaluations. The frozen model audit checks both
+    -- against frozen_models, so a run cannot quietly apply another threshold.
     frozen_model_id TEXT REFERENCES frozen_models (model_id),
+    applied_threshold REAL CHECK (applied_threshold BETWEEN 0 AND 1),
     started_at TEXT NOT NULL,
     finished_at TEXT,
     is_reported INTEGER NOT NULL DEFAULT 0 CHECK (is_reported IN (0, 1)),
