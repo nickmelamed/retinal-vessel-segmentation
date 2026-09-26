@@ -2,9 +2,30 @@
 data/*
 !data/CHECKSUMS.sha256
 
+# Run outputs are reproduced, not committed. Tables and release snapshots are.
+results/*
+!results/tables/
+!results/release/
+models/
+reports/
+
 # Local Claude Code state
 .claude/.gate-state.json
 .claude/settings.local.json
 
-.DS_Store
+# Python tooling
+.venv/
 __pycache__/
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+mutants/
+
+.DS_Store
