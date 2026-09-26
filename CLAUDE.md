@@ -11,6 +11,7 @@ narrowings in vessel width profiles.
 The full design is in docs/SPEC.md, which keeps the original section numbers,
 so "section 5" means SPEC.md section 5. Read the relevant section before
 changing anything it covers. Status and next steps are in PROGRESS.md.
+Read HANDOFF.md at the start of every session for context from the last one.
 Decisions and their reasons are in docs/DECISIONS.md. Git conventions are in
 docs/CONTRIBUTING.md.
 

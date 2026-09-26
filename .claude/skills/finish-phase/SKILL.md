@@ -17,8 +17,11 @@ Close out the current phase (see PROGRESS.md).
 5. Make sure any design decision is in docs/DECISIONS.md.
 6. Update CHANGELOG.md under "Unreleased" and tick the finished items in
    PROGRESS.md.
-7. Commit the fixes as atomic Conventional Commits.
-8. Give the owner a short summary covering what was built, the commits,
+7. Rewrite HANDOFF.md for planning the next phase. Cover where things
+   stand, what the next phase must deliver, decisions to raise with the
+   owner, and working notes. Replace anything that is out of date.
+8. Commit the fixes as atomic Conventional Commits.
+9. Give the owner a short summary covering what was built, the commits,
    decisions logged, anything left open from review, and the evidence that
    checks pass.
-9. Ask before pushing or opening the pull request (merge commit, not squash).
+10. Ask before pushing or opening the pull request (merge commit, not squash).
