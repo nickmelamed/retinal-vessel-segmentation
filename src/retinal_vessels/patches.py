@@ -52,13 +52,14 @@ def sample_augmentation(cfg: PatchesConfig, n: int, rng: np.random.Generator) ->
     """Draw augmentation parameters for ``n`` patches.
 
     Steps switched off in config get their identity value, so every patch
-    goes through the same ops.
+    goes through the same ops. Every draw is made either way, so switching a
+    step off never changes the draws for the others under the same seed.
     """
     low, high = cfg.contrast_range
     return Augmentation(
         flip_rows=rng.random(n) < cfg.flip_probability,
         flip_cols=rng.random(n) < cfg.flip_probability,
-        rotations=rng.integers(0, N_ROTATIONS, size=n) if cfg.rot90 else np.zeros(n, dtype=int),
+        rotations=rng.integers(0, N_ROTATIONS, size=n) * int(cfg.rot90),
         brightness=rng.uniform(-cfg.brightness_delta, cfg.brightness_delta, size=n),
         contrast=rng.uniform(low, high, size=n),
     )

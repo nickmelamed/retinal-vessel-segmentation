@@ -102,6 +102,19 @@ def test_flip_probability_sets_how_often_patches_flip(probability: float) -> Non
         assert flips.all() if probability else not flips.any()
 
 
+def test_switching_off_geometric_steps_keeps_the_jitter_draws() -> None:
+    cfg = config(brightness_delta=0.2, contrast_range=(0.8, 1.25))
+    on = sample_augmentation(cfg, 50, np.random.default_rng(0))
+    off = sample_augmentation(
+        cfg.model_copy(update={"rot90": False, "flip_probability": 0.0}),
+        50,
+        np.random.default_rng(0),
+    )
+    assert not off.rotations.any()
+    np.testing.assert_array_equal(on.brightness, off.brightness)
+    np.testing.assert_array_equal(on.contrast, off.contrast)
+
+
 def test_patches_have_the_configured_shapes() -> None:
     out = batches(make_patch_dataset(*arrays(), config(), seed=0))
     assert [len(b[0]) for b in out] == [8] * 6 + [2]
