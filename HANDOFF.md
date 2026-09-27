@@ -27,8 +27,9 @@ What exists now:
   `runs.applied_threshold` and `runs.frozen_model_id` exist for query 09.
   Folds count from 1, and fold 0 in `training_history` is the frozen model
   (D-010). A reported run must be finished, clean, and tagged (`runs.git_tag`). An
-  external run sets `frozen_model_id` and `applied_threshold` together, and
-  query 09 finds external runs by `frozen_model_id`. Timestamps are
+  external run sets `frozen_model_id` and `applied_threshold` together. Query
+  09 finds external runs from their metrics on `external` images, not from
+  those columns (D-007). Timestamps are
   whole-second UTC ending in Z, and abnormal images must carry their note. Built
   wheels carry a copy of the schema.
 - `scripts/check_data.py` (`make check-data`) verifies `data/DRIVE` against

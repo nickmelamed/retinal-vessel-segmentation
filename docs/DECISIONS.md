@@ -89,9 +89,13 @@ verbatim notes for images 25, 26, and 32 cannot be dropped on load.
 actually used. Query 09 compares both with the frozen record, so a run that
 applied any other threshold is caught. Section 8 requires that check, and
 `thresholds` cannot hold it because external runs have no fold.
-The two columns are set together or not at all, so query 09 identifies an
-external evaluation as any run with `frozen_model_id` set, and a NULL
-threshold can never slip past it.
+The two columns are set together or not at all, so a NULL threshold cannot
+hide behind a recorded model. Query 09 must not rely on these columns to find
+external evaluations, because a run that leaves both NULL would escape it.
+It finds them from their data instead: any run with `per_image_metrics` rows
+on images whose split is `external`. It then flags each one whose
+`frozen_model_id` is NULL, whose threshold differs from the frozen record, or
+that started before the model was frozen.
 
 `images.split` takes `external` for datasets that have no official split.
 
