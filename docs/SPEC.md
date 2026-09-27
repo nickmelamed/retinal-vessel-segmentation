@@ -389,7 +389,7 @@ Git and commit discipline is in docs/CONTRIBUTING.md.
   3. Place the DRIVE data on the Colab machine (the extension's upload feature; Google Drive mounting isn't supported natively in the extension), then run `make check-data` so the checksums must match before any training.
   4. Run the `make` targets.
   5. Before the session ends, download `results/experiments.db`, `results/<run_id>/` manifests, and checkpoints to the laptop, and verify the checkpoint SHA-256 values against the database.
-- **Resumable runs:** free sessions can disconnect. Cross-validation must be restartable with the same command: completed folds (per `fold_status`) are skipped, incomplete ones are retrained from scratch. Write the database and checkpoints after each fold, and make downloading them after each fold easy, so a disconnect costs at most one fold.
+- **Resumable runs:** Colab sessions can disconnect. Cross-validation must be restartable with the same command: completed folds (per `fold_status`) are skipped, incomplete ones are retrained from scratch. Write the database and checkpoints after each fold, and make downloading them after each fold easy, so a disconnect costs at most one fold.
 - **Same hardware for comparable runs:** every run records `gpu_type` and `compute_platform`. All reported segmentation runs (every variant and the frozen model) must use the same GPU type; if Colab assigns something else, record it and don't mix it into reported comparisons. If a different GPU is ever used, say so in the README.
 - **Fallbacks, if Colab becomes unworkable:** Colab Pro, Kaggle Notebooks (DRIVE uploaded as a private dataset), or a paid cloud GPU running the `Dockerfile`. Any change of platform goes in `docs/DECISIONS.md`.
 
