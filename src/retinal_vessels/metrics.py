@@ -93,6 +93,63 @@ def binary_metrics(prediction: np.ndarray, label: np.ndarray, fov: np.ndarray) -
     )
 
 
+def _scores(
+    probability: np.ndarray, label: np.ndarray, fov: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    _check_inputs(probability, label, fov, np.float32)
+    return probability[fov].astype(np.float64), label[fov]
+
+
+def _counts_per_score(p: np.ndarray, t: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    # Vessel and background pixel counts at each distinct score, in ascending
+    # score order. Tied pixels share one entry, which is how both AUCs treat ties.
+    values, inverse = np.unique(p, return_inverse=True)
+    vessel = np.bincount(inverse, weights=t, minlength=len(values))
+    background = np.bincount(inverse, weights=~t, minlength=len(values))
+    return vessel, background
+
+
+def auc_roc(probability: np.ndarray, label: np.ndarray, fov: np.ndarray) -> float | None:
+    """Return the area under the ROC curve inside ``fov``, or None if one class is absent.
+
+    This is the chance that a random vessel pixel scores above a random
+    background pixel, with a tie counting one half. ``probability`` is
+    (H, W) float32.
+    """
+    p, t = _scores(probability, label, fov)
+    n_vessel = int(t.sum())
+    n_background = len(t) - n_vessel
+    if n_vessel == 0 or n_background == 0:
+        return None
+    vessel, background = _counts_per_score(p, t)
+    below = np.cumsum(background) - background
+    return float(np.sum(vessel * (below + background / 2)) / (n_vessel * n_background))
+
+
+def average_precision(probability: np.ndarray, label: np.ndarray, fov: np.ndarray) -> float | None:
+    """Return the area under the precision-recall curve inside ``fov`` as average precision.
+
+    The sum over distinct thresholds of the gain in recall times the
+    precision there, with no interpolation between points. None when the FOV
+    holds no vessel pixel. ``probability`` is (H, W) float32.
+    """
+    p, t = _scores(probability, label, fov)
+    n_vessel = int(t.sum())
+    if n_vessel == 0:
+        return None
+    vessel, background = _counts_per_score(p, t)
+    tp = np.cumsum(vessel[::-1])
+    fp = np.cumsum(background[::-1])
+    recall_gain = vessel[::-1] / n_vessel
+    return float(np.sum(recall_gain * tp / (tp + fp)))
+
+
+def brier(probability: np.ndarray, label: np.ndarray, fov: np.ndarray) -> float:
+    """Return the mean squared difference between probability and label inside ``fov``."""
+    p, t = _scores(probability, label, fov)
+    return float(np.mean((p - t) ** 2))
+
+
 def threshold_grid(divisions: int) -> np.ndarray:
     """Return the candidate thresholds ``i / divisions`` for i = 1 .. divisions - 1."""
     if divisions < 2:

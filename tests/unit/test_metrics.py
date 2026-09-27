@@ -6,9 +6,12 @@ from hypothesis.extra.numpy import arrays
 
 from retinal_vessels.metrics import (
     ConfusionCounts,
+    auc_roc,
+    average_precision,
     best_threshold,
     binarize,
     binary_metrics,
+    brier,
     confusion_counts,
     dice,
     dice_per_threshold,
@@ -167,3 +170,86 @@ def test_threshold_is_applied_in_the_same_precision_everywhere() -> None:
         prob = np.array([[np.float32(t), 0.0]], dtype=np.float32)
         swept = dice_per_threshold(prob, label, fov, np.array([t]))[0]
         assert binary_metrics(binarize(prob, float(t)), label, fov).dice == swept
+
+
+# Inside the FOV the scores are 0.9 (vessel), 0.8, 0.7 (vessel), and 0.1. The
+# last pixel, outside the FOV, is a vessel scored 0 and must not count.
+SCORES = np.array([[0.9, 0.8, 0.7, 0.1, 0.0]], dtype=np.float32)
+SCORE_LABEL = b([[1, 0, 1, 0, 1]])
+SCORE_FOV = b([[1, 1, 1, 1, 0]])
+
+
+def test_auc_roc_by_hand() -> None:
+    # Vessel 0.9 beats both background pixels, vessel 0.7 beats only 0.1.
+    assert auc_roc(SCORES, SCORE_LABEL, SCORE_FOV) == pytest.approx(3 / 4)
+
+
+def test_average_precision_by_hand() -> None:
+    # Recall rises by 1/2 at 0.9 (precision 1) and by 1/2 at 0.7 (precision 2/3).
+    assert average_precision(SCORES, SCORE_LABEL, SCORE_FOV) == pytest.approx(1 / 2 + 1 / 3)
+
+
+def test_brier_by_hand() -> None:
+    expected = (0.1**2 + 0.8**2 + 0.3**2 + 0.1**2) / 4
+    assert brier(SCORES, SCORE_LABEL, SCORE_FOV) == pytest.approx(expected)
+
+
+def test_tied_scores_count_as_one_threshold() -> None:
+    prob = np.array([[0.5, 0.5]], dtype=np.float32)
+    label, fov = b([[1, 0]]), b([[1, 1]])
+    assert auc_roc(prob, label, fov) == pytest.approx(0.5)
+    assert average_precision(prob, label, fov) == pytest.approx(0.5)
+
+
+def test_ranking_scores_on_one_class_fov() -> None:
+    fov = b([[1, 1]])
+    prob = np.array([[0.2, 0.6]], dtype=np.float32)
+    assert auc_roc(prob, b([[0, 0]]), fov) is None
+    assert auc_roc(prob, b([[1, 1]]), fov) is None
+    assert average_precision(prob, b([[0, 0]]), fov) is None
+    assert average_precision(prob, b([[1, 1]]), fov) == 1.0
+
+
+def test_perfect_scores() -> None:
+    prob = SCORE_LABEL.astype(np.float32)
+    assert auc_roc(prob, SCORE_LABEL, SCORE_FOV) == 1.0
+    assert average_precision(prob, SCORE_LABEL, SCORE_FOV) == 1.0
+    assert brier(prob, SCORE_LABEL, SCORE_FOV) == 0.0
+
+
+def test_ranking_scores_reject_bool_prediction() -> None:
+    for score in (auc_roc, average_precision, brier):
+        with pytest.raises(ValueError, match="prediction must be float32"):
+            score(SCORE_LABEL, SCORE_LABEL, SCORE_FOV)
+
+
+def pairwise_auc(p: np.ndarray, t: np.ndarray) -> float:
+    vessel, background = p[t][:, None], p[~t][None, :]
+    return float(np.mean((vessel > background) + 0.5 * (vessel == background)))
+
+
+def per_pixel_precision(p: np.ndarray, t: np.ndarray) -> float:
+    # The mean, over vessel pixels, of the precision at that pixel's score.
+    return float(np.mean([np.sum(t[p >= s]) / np.sum(p >= s) for s in p[t]]))
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    prob=arrays(np.float32, (4, 5), elements=st.sampled_from([0.0, 0.1, 0.25, 0.5, 0.7, 1.0])),
+    label=arrays(np.bool_, (4, 5)),
+    fov=arrays(np.bool_, (4, 5)).filter(lambda f: bool(f.any())),
+)
+def test_ranking_scores_match_brute_force(
+    prob: np.ndarray, label: np.ndarray, fov: np.ndarray
+) -> None:
+    p, t = prob[fov].astype(np.float64), label[fov]
+    roc, ap = auc_roc(prob, label, fov), average_precision(prob, label, fov)
+    if t.any() and not t.all():
+        assert roc == pytest.approx(pairwise_auc(p, t))
+    else:
+        assert roc is None
+    if t.any():
+        assert ap == pytest.approx(per_pixel_precision(p, t))
+    else:
+        assert ap is None
+    assert brier(prob, label, fov) == pytest.approx(float(np.mean((p - t) ** 2)))
