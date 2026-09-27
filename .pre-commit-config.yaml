@@ -22,7 +22,7 @@ repos:
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
-        args: [feat,fix, refactor, perf, test, docs, build, ci, chore, exp]
+        args: [feat, fix, refactor, perf, test, docs, build, ci, chore, exp]
 
   # Local hooks run through uv so they use the versions pinned in uv.lock.
   - repo: local
