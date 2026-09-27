@@ -7,7 +7,19 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
-SCHEMA_PATH = Path(__file__).resolve().parents[2] / "sql" / "schema.sql"
+SCHEMA_NAME = "schema.sql"
+
+
+def _schema_path() -> Path:
+    # A built wheel carries a copy of sql/schema.sql inside the package (see
+    # pyproject.toml). An editable install has no copy and reads the repo file.
+    packaged = Path(__file__).resolve().parent / SCHEMA_NAME
+    if packaged.is_file():
+        return packaged
+    return Path(__file__).resolve().parents[2] / "sql" / SCHEMA_NAME
+
+
+SCHEMA_PATH = _schema_path()
 
 
 def connect(path: Path) -> sqlite3.Connection:
