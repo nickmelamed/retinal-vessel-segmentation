@@ -48,3 +48,18 @@ def test_set_seed_repeats_python_numpy_and_tf_draws() -> None:
     first = draw()
     set_seed(7)
     assert draw() == first
+
+
+@pytest.mark.slow
+def test_set_seed_repeats_keras_weight_init() -> None:
+    # Keras 3 layers draw initial weights from Keras's own seed generator,
+    # which seeding TensorFlow alone does not reset.
+    from retinal_vessels.config import ModelConfig
+    from retinal_vessels.model import build_unet
+
+    cfg = ModelConfig(depth=1, base_filters=2, dropout=0.0, batch_norm=False)
+    set_seed(11)
+    first = build_unet(cfg).get_weights()
+    set_seed(11)
+    for a, b in zip(build_unet(cfg).get_weights(), first, strict=True):
+        np.testing.assert_array_equal(a, b)

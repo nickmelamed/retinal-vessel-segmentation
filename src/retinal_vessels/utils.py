@@ -26,7 +26,7 @@ def setup_logging(level: int = logging.INFO) -> None:
 
 
 def set_seed(seed: int, deterministic: bool = False) -> bool:
-    """Seed Python, NumPy, and TensorFlow, and optionally force deterministic ops.
+    """Seed Python, NumPy, TensorFlow, and Keras, and optionally force deterministic ops.
 
     Return whether deterministic ops were enabled. The run manifest records
     this, since GPU results repeat bit for bit only when it is true.
@@ -37,9 +37,13 @@ def set_seed(seed: int, deterministic: bool = False) -> bool:
     random.seed(seed)
     np.random.seed(seed)
 
+    import keras
     import tensorflow as tf
 
     tf.random.set_seed(seed)
+    # Keras 3 layers initialize weights from Keras's own seed generator,
+    # which tf.random.set_seed does not reset.
+    keras.utils.set_random_seed(seed)
     if deterministic:
         tf.config.experimental.enable_op_determinism()
     return deterministic
