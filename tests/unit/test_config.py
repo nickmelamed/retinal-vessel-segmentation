@@ -118,7 +118,7 @@ def test_rejects_bad_value(
 def test_rejects_size_the_unet_cannot_halve(
     tmp_path: Path, baseline: dict[str, Any], section: str, key: str
 ) -> None:
-    # Depth 4 halves four times, so sizes must divide by 16. 72 is even but not.
+    # Depth 4 needs sizes divisible by 16. 72 is even but not a multiple of 16.
     baseline[section][key] = 72
     if key == "window":
         baseline["inference"]["stride"] = 72
