@@ -5,8 +5,8 @@ Write synthetic data, record and verify its checksums through the real
 folds, check them with the leakage audit, sample a batch of patches, and
 write a run manifest. Finally, train the full smoke cross-validation through
 the ``train`` CLI, as ``make train`` does, evaluate it through the
-``evaluate`` CLI, and train again in a new process, which must reproduce
-the first run exactly.
+``evaluate`` CLI, write its tables with ``make_tables.py``, and train again
+in a new process, which must reproduce the first run exactly.
 """
 
 import json
@@ -225,6 +225,32 @@ def test_training_cli_runs_cross_validation(synthetic_data_root: Path, tmp_path:
         assert len(run_query(conn, "02_worst_images")) == 20
         assert len(run_query(conn, "05_threshold_log")) == 5
         assert run_query(conn, "04_leakage_audit") == []
+
+    # The smoke run is not reported, so its tables are marked as a
+    # development run and kept out of results/tables.
+    tables = tmp_path / "tables"
+    tabulated = subprocess.run(
+        [
+            sys.executable,
+            str(REPO / "scripts" / "make_tables.py"),
+            "--db",
+            str(db),
+            "--results-dir",
+            str(results),
+            "--out-dir",
+            str(tables),
+            "--allow-unreported",
+            run_id,
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert tabulated.returncode == 0, tabulated.stderr
+    headline = (tables / "headline.md").read_text()
+    assert headline.startswith("> Development run, not reported.")
+    assert run_id in headline.rstrip().splitlines()[-1]
+    assert len(list(tables.glob("*.md"))) == 8
 
     again = subprocess.run(
         [sys.executable, "-m", "retinal_vessels.train", *args],
