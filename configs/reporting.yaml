@@ -1,0 +1,34 @@
+# Settings for the reported tables and figures (SPEC sections 11, 12, 17).
+# This is not a variant config. Each run stores its variant config, so the
+# settings for presenting results live here, where changing them never
+# changes a run's record. Each setting is required, see
+# src/retinal_vessels/config.py.
+
+reported_runs:
+  # Every reported segmentation run uses the same GPU (D-013, SPEC section 16).
+  gpu_type: Tesla T4
+  compute_platform: colab
+
+tables:
+  decimals: 3
+  # Percentile bootstrap over images for the 95% intervals.
+  bootstrap_resamples: 10000
+  bootstrap_seed: 20260927
+  ci_level: 0.95
+
+figures:
+  dpi: 150
+  # Images shown at each end of the best/worst figure.
+  n_best_worst: 2
+  # Colors from the validated default palette. False positives and false
+  # negatives use its first two categorical slots, which stay apart under
+  # every color vision deficiency. True positives are neutral ink.
+  surface: "#fcfcfb"
+  ink: "#0b0b0b"
+  secondary_ink: "#52514e"
+  muted_ink: "#898781"
+  gridline: "#e1e0d9"
+  series: "#2a78d6"
+  true_positive: "#52514e"
+  false_positive: "#eb6834"
+  false_negative: "#2a78d6"
