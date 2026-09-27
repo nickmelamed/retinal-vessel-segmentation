@@ -122,26 +122,42 @@ def test_foreign_keys_are_enforced(conn: sqlite3.Connection) -> None:
         )
 
 
+FINISHED = {"finished_at": "2026-09-26T01:00:00Z"}
+
+
+# Each row breaks exactly one rule, and ``match`` names the constraint that
+# must reject it, so a row cannot pass because some other check fired first.
 @pytest.mark.parametrize(
-    ("table", "row"),
+    ("table", "row", "match"),
     [
-        ("images", {**IMAGE, "dataset": "hrf"}),
-        ("images", {**IMAGE, "fov_source": "guessed"}),
-        ("images", {**IMAGE, "has_labels": 0}),
-        ("images", {**IMAGE, "has_abnormality": 1}),
-        ("images", {**IMAGE, "has_abnormality": 1, "abnormality_note": ""}),
-        ("images", {**IMAGE, "abnormality_note": "background diabetic retinopathy"}),
-        ("runs", {**RUN, "git_dirty": 1, "is_reported": 1}),
-        ("runs", {**RUN, "git_tag": "v0.1.0", "git_dirty": 1, "is_reported": 1}),
-        ("runs", {**RUN, "is_reported": 1}),
-        ("runs", {**RUN, "seed": "zero"}),
-        ("runs", {**RUN, "applied_threshold": 1.5}),
+        ("images", {**IMAGE, "dataset": "hrf"}, "dataset IN"),
+        ("images", {**IMAGE, "fov_source": "guessed"}, "fov_source IN"),
+        ("images", {**IMAGE, "has_labels": 0}, "has_labels = 1"),
+        ("images", {**IMAGE, "has_abnormality": 1}, "has_abnormality = 1"),
+        (
+            "images",
+            {**IMAGE, "has_abnormality": 1, "abnormality_note": ""},
+            "has_abnormality = 1",
+        ),
+        (
+            "images",
+            {**IMAGE, "abnormality_note": "background diabetic retinopathy"},
+            "has_abnormality = 1",
+        ),
+        (
+            "runs",
+            {**RUN, **FINISHED, "git_tag": "v0.1.0", "git_dirty": 1, "is_reported": 1},
+            "reported_needs_clean_tree",
+        ),
+        ("runs", {**RUN, **FINISHED, "is_reported": 1}, "reported_needs_tag"),
+        ("runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1}, "reported_needs_finish"),
+        ("runs", {**RUN, "seed": "zero"}, "runs.seed"),
     ],
 )
 def test_check_constraints_reject_bad_rows(
-    conn: sqlite3.Connection, table: str, row: dict[str, Any]
+    conn: sqlite3.Connection, table: str, row: dict[str, Any], match: str
 ) -> None:
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(sqlite3.IntegrityError, match=match):
         insert(conn, table, row)
 
 
@@ -190,9 +206,34 @@ def test_connect_creates_the_results_directory(tmp_path: Path) -> None:
     assert path.is_file()
 
 
-def test_a_clean_tagged_run_can_be_reported(conn: sqlite3.Connection) -> None:
-    insert(conn, "runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1})
+def test_a_finished_clean_tagged_run_can_be_reported(conn: sqlite3.Connection) -> None:
+    finished = {"git_tag": "v0.1.0", "finished_at": "2026-09-26T01:00:00Z"}
+    insert(conn, "runs", {**RUN, **finished, "is_reported": 1})
     assert conn.execute("SELECT is_reported FROM runs").fetchall() == [(1,)]
+
+
+def test_external_runs_record_model_and_threshold_together(conn: sqlite3.Connection) -> None:
+    insert(conn, "runs", RUN)
+    frozen = {
+        "model_id": "m1",
+        "run_id": "r1",
+        "checkpoint_sha256": "c",
+        "threshold": 0.5,
+        "n_epochs": 30,
+        "git_commit": "abc",
+        "frozen_at": "2026-09-26T02:00:00Z",
+    }
+    insert(conn, "frozen_models", frozen)
+    pairing = "model_and_threshold_together"
+    with pytest.raises(sqlite3.IntegrityError, match=pairing):
+        insert(conn, "runs", {**RUN, "run_id": "e1", "frozen_model_id": "m1"})
+    with pytest.raises(sqlite3.IntegrityError, match=pairing):
+        insert(conn, "runs", {**RUN, "run_id": "e2", "applied_threshold": 0.5})
+    insert(conn, "runs", {**RUN, "run_id": "e3", "frozen_model_id": "m1", "applied_threshold": 0.5})
+    with pytest.raises(sqlite3.IntegrityError, match="applied_threshold BETWEEN"):
+        insert(
+            conn, "runs", {**RUN, "run_id": "e4", "frozen_model_id": "m1", "applied_threshold": 1.5}
+        )
 
 
 def test_folds_count_from_one_and_zero_is_the_frozen_model(conn: sqlite3.Connection) -> None:

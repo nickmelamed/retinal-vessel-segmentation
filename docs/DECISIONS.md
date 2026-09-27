@@ -65,8 +65,8 @@ the Claude GitHub App does not need to be installed.
 
 Tables are `STRICT`, so SQLite enforces column types. Enumerations and metric
 ranges are `CHECK` constraints, and foreign keys tie folds and metrics to runs
-and images. A run can be reported only if it came from a clean tree and a
-tagged commit (rule 7), so `runs.git_tag` records the tag on HEAD, and the
+and images. A run can be reported only if it finished and came from a clean tree
+and a tagged commit (rule 7), so `runs.git_tag` records the tag on HEAD, and the
 manifest carries it too. A fold cannot be complete without its checkpoint
 hash.
 
@@ -89,6 +89,14 @@ verbatim notes for images 25, 26, and 32 cannot be dropped on load.
 actually used. Query 09 compares both with the frozen record, so a run that
 applied any other threshold is caught. Section 8 requires that check, and
 `thresholds` cannot hold it because external runs have no fold.
+The two columns are set together or not at all, so a NULL threshold cannot
+hide behind a recorded model. Query 09 must not rely on these columns to find
+external evaluations, because a run that leaves both NULL would escape it.
+It finds them from their data instead: any run with `per_image_metrics` rows
+on images whose split is `external`. It then flags each one whose
+`frozen_model_id` is NULL, whose threshold differs from the frozen record, or
+that started before the model was frozen.
+
 `images.split` takes `external` for datasets that have no official split.
 
 The anomaly module tables are left for schema version 2 in phase 9, when

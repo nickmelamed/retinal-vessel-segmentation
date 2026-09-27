@@ -79,8 +79,16 @@ CREATE TABLE IF NOT EXISTS runs (
     started_at TEXT NOT NULL CHECK (started_at IS strftime('%Y-%m-%dT%H:%M:%SZ', started_at)),
     finished_at TEXT CHECK (finished_at IS strftime('%Y-%m-%dT%H:%M:%SZ', finished_at)),
     is_reported INTEGER NOT NULL DEFAULT 0 CHECK (is_reported IN (0, 1)),
-    -- Only runs from a clean, tagged commit can back a reported number.
-    CHECK (is_reported = 0 OR (git_dirty = 0 AND git_tag IS NOT NULL))
+    -- Only finished runs from a clean, tagged commit can back a reported
+    -- number. Each rule is named so an error says which one failed.
+    CONSTRAINT reported_needs_clean_tree CHECK (is_reported = 0 OR git_dirty = 0),
+    CONSTRAINT reported_needs_tag CHECK (is_reported = 0 OR git_tag IS NOT NULL),
+    CONSTRAINT reported_needs_finish CHECK (is_reported = 0 OR finished_at IS NOT NULL),
+    -- An external evaluation records both its frozen model and the threshold
+    -- it applied, so a NULL threshold cannot hide behind a recorded model.
+    CONSTRAINT model_and_threshold_together CHECK (
+        (frozen_model_id IS NULL) = (applied_threshold IS NULL)
+    )
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS fold_assignments (
