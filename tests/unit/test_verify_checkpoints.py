@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import logging
 import sqlite3
 from collections.abc import Iterator
@@ -42,27 +43,35 @@ def checkpoint(models: Path, run_id: str, fold: int, content: bytes) -> str:
     return sha256_file(path)
 
 
+CONFIG = json.dumps({"folds": {"n_folds": 3}})
+
+
+def complete(conn: sqlite3.Connection, models: Path, run_id: str, fold: int) -> None:
+    sha = checkpoint(models, run_id, fold, f"weights {run_id} {fold}".encode())
+    insert(
+        conn,
+        "fold_status",
+        {
+            "run_id": run_id,
+            "fold": fold,
+            "status": "complete",
+            "checkpoint_sha256": sha,
+            "started_at": RUN["started_at"],
+            "completed_at": RUN["started_at"],
+        },
+    )
+
+
 @pytest.fixture
 def setup(tmp_path: Path) -> tuple[Path, Path]:
     db, models = tmp_path / "experiments.db", tmp_path / "models"
     conn = sqlite3.connect(db)
     create_schema(conn)
+    # r2 is still training: folds 1 and 2 of 3 are complete and fold 3 is running.
     for run_id in ("r1", "r2"):
-        insert(conn, "runs", {**RUN, "run_id": run_id})
+        insert(conn, "runs", {**RUN, "run_id": run_id, "config": CONFIG})
     for fold in (1, 2):
-        sha = checkpoint(models, "r2", fold, f"weights {fold}".encode())
-        insert(
-            conn,
-            "fold_status",
-            {
-                "run_id": "r2",
-                "fold": fold,
-                "status": "complete",
-                "checkpoint_sha256": sha,
-                "started_at": RUN["started_at"],
-                "completed_at": RUN["started_at"],
-            },
-        )
+        complete(conn, models, "r2", fold)
     insert(
         conn,
         "fold_status",
@@ -78,25 +87,74 @@ def cli(db: Path, models: Path, *extra: str) -> int:
     return code
 
 
-def test_matching_checkpoints_pass(setup: tuple[Path, Path]) -> None:
+def test_matching_checkpoints_of_an_unfinished_run_pass_when_allowed(
+    setup: tuple[Path, Path],
+) -> None:
+    assert cli(*setup, "--allow-unfinished") == 0
+    assert cli(*setup, "--run-id", "r2", "--allow-unfinished") == 0
+
+
+def test_an_unfinished_run_fails_by_default(
+    setup: tuple[Path, Path], caplog: pytest.LogCaptureFixture
+) -> None:
+    assert cli(*setup) == 1
+    assert "run r2: 2 of 3 folds complete, not finished" in caplog.text
+    assert "--allow-unfinished" in caplog.text
+
+
+def finish(db: Path, models: Path) -> None:
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute("DELETE FROM fold_status WHERE run_id = 'r2' AND fold = 3")
+        complete(conn, models, "r2", 3)
+        conn.execute("UPDATE runs SET finished_at = started_at WHERE run_id = 'r2'")
+        conn.commit()
+
+
+def test_a_finished_run_passes(setup: tuple[Path, Path], caplog: pytest.LogCaptureFixture) -> None:
+    finish(*setup)
     assert cli(*setup) == 0
-    assert cli(*setup, "--run-id", "r2") == 0
+    assert "run r2: 3 of 3 folds complete, finished" in caplog.text
+
+
+def test_a_finished_run_missing_a_fold_fails(setup: tuple[Path, Path]) -> None:
+    db, models = setup
+    finish(db, models)
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute("DELETE FROM fold_status WHERE run_id = 'r2' AND fold = 3")
+        conn.commit()
+    assert cli(db, models) == 1
+    assert cli(db, models, "--allow-unfinished") == 0
 
 
 def test_a_changed_checkpoint_fails(setup: tuple[Path, Path]) -> None:
     db, models = setup
     (models / "r2" / "fold_2.keras").write_bytes(b"other weights")
+    assert cli(db, models, "--allow-unfinished") == 1
+    finish(db, models)
     assert cli(db, models) == 1
 
 
 def test_a_missing_checkpoint_fails(setup: tuple[Path, Path]) -> None:
     db, models = setup
     (models / "r2" / "fold_1.keras").unlink()
-    assert cli(db, models) == 1
+    assert cli(db, models, "--allow-unfinished") == 1
 
 
 def test_a_run_without_complete_folds_fails(setup: tuple[Path, Path]) -> None:
-    assert cli(*setup, "--run-id", "r1") == 1
+    assert cli(*setup, "--run-id", "r1", "--allow-unfinished") == 1
+
+
+def test_an_unknown_run_fails(setup: tuple[Path, Path], caplog: pytest.LogCaptureFixture) -> None:
+    assert cli(*setup, "--run-id", "nope") == 1
+    assert "no run nope" in caplog.text
+
+
+def test_a_config_without_a_fold_count_fails(setup: tuple[Path, Path]) -> None:
+    db, models = setup
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute("UPDATE runs SET config = '{}' WHERE run_id = 'r2'")
+        conn.commit()
+    assert cli(db, models, "--allow-unfinished") == 1
 
 
 def test_missing_or_empty_database_fails(tmp_path: Path) -> None:
