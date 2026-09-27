@@ -29,7 +29,19 @@ All notable changes to this project are documented here. The format follows
 - Sliding-window inference and FOV-masked confusion-matrix metrics with the validation threshold sweep.
 - `make train VARIANT=<name>`: resumable 5-fold cross-validation that logs runs, folds, thresholds, per-image metrics, and training curves to the database and writes a run manifest.
 - `make verify-checkpoints` and a Colab runner notebook for GPU runs.
+- AUC-ROC, AUC-PR (average precision), the Brier score, a pooled reliability table, and thin and thick vessel sensitivity, all inside the FOV.
+- `make evaluate RUN=<run_id>`: fills those metrics for a finished run from its saved predictions and writes `results/<run_id>/evaluation.json`, after checking the prediction hashes, the data hash, and the stored confusion metrics. It records the evaluating commit, and evaluates a clean-tree run only from a clean tree at that run's commit.
+- Each fold records the SHA-256 of its saved predictions.
+- An `evaluation` config section for the reliability bins and the thin/thick quantile.
+- SQL queries 01 (fold summary), 02 (worst images), 03 (variant comparison), and 05 (threshold log).
+- Hypothesis property tests for the metrics, and `make mutate` now covers `metrics.py`.
+
+### Changed
+
+- `/scratch-train` runs on synthetic data only.
 
 ### Fixed
 
 - `set_seed` now seeds Keras, so models built after the same seed start from the same weights.
+- `make verify-checkpoints` fails on an unfinished run unless `UNFINISHED=1` is set, so a partial run can no longer pass.
+- `make evaluate` rewrites a run's manifest from the database, so a crash after the run finished cannot leave `finished_at` missing.
