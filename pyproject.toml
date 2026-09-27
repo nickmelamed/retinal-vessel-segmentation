@@ -60,7 +60,7 @@ python_version = "3.13"
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["tensorflow", "tensorflow.*", "skimage", "skimage.*"]
+module = ["tensorflow", "tensorflow.*", "keras", "keras.*", "skimage", "skimage.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
