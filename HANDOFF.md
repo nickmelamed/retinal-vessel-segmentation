@@ -1,125 +1,139 @@
-# Handoff for planning phase 1
+# Handoff for planning phase 2
 
-This note is for a new Claude Code session that will plan phase 1 (data) with
-the owner. Read CLAUDE.md first, then PROGRESS.md, then the SPEC sections
-named below. Plan only. Wait for the owner's approval before building, and
-do the work on a `phase/1-data` branch cut from `main` after phase 0 merges.
+This note is for a new Claude Code session that will plan phase 2 (model and
+training) with the owner. Read CLAUDE.md first, then PROGRESS.md, then the
+SPEC sections named below. Plan only. Wait for the owner's approval before
+building, and do the work on a `phase/2-model` branch cut from `main` after
+phase 1 merges.
 
 ## Where things stand (2026-09-26)
 
-Phase 0 is merged into `main` (PR #1, merge commit `02e72b0`) and ticked in
-PROGRESS.md. CI passes on `main`. A follow-up branch, `fix/schema-review`,
-carries the last review's schema fixes as PR #2. Check `gh pr view 2`, and
-cut `phase/1-data` from `main` once it has merged.
+Phase 1 is finished on `phase/1-data` and ticked in PROGRESS.md. It is not
+pushed yet, and the pull request (merge commit, not squash) waits for the
+owner. Check `gh pr list`, and cut `phase/2-model` from `main` once it has
+merged. `make ci` passes on the branch: 211 tests at 97.82% coverage.
 
-What exists now:
+What phase 1 added:
 
-- `pyproject.toml`, `uv.lock`, generated `requirements.txt`, and
-  `.python-version` pinned to 3.13 with TensorFlow 2.21 (D-001, D-003).
-- `src/retinal_vessels/` holds four modules:
-  - `utils.py` for `setup_logging` and `set_seed`
-  - `provenance.py` for checksums, git state and tag, environment, UTC
-    timestamps, and run manifests. `build_manifest` takes a passing
-    `ChecksumReport` and refuses a failed one.
-  - `db.py` for `connect` and `create_schema`
-  - `__init__.py`
-- `sql/schema.sql` is schema version 1 (D-007). It has no anomaly tables yet.
-  `runs.applied_threshold` and `runs.frozen_model_id` exist for query 09.
-  Folds count from 1, and fold 0 in `training_history` is the frozen model
-  (D-010). A reported run must be finished, clean, and tagged (`runs.git_tag`). An
-  external run sets `frozen_model_id` and `applied_threshold` together. Query
-  09, when written, must find external runs from their metrics on `external`
-  images, not from those columns (D-007). Timestamps are
-  whole-second UTC ending in Z, and abnormal images must carry their note. Built
-  wheels carry a copy of the schema.
-- `scripts/check_data.py` (`make check-data`) verifies `data/DRIVE` against
-  `data/CHECKSUMS.sha256` and never rewrites it (D-004). The checksum file
-  always defaults to the committed one, and writing a missing one needs
-  `--init` (D-014). It passes on the real data. `DRIVE_DIR` points at the
-  DRIVE directory itself.
-- `tests/fixtures/synthetic_drive.py` writes a DRIVE-shaped tree with the
-  real names, sizes, and formats. The labels and masks are grayscale GIFs
-  holding 0 and 255, which is how the real files read back. `conftest.py`
-  exposes it as `synthetic_data_root`.
-- Makefile targets: `setup`, `lock`, `lock-check`, `check-data`, `lint`,
-  `test`, `smoke`, `ci`, and `agent-check` (the full list, through `uv run`).
-- Pre-commit hooks from CONTRIBUTING.md, including a commit-msg check.
-- CI (`ci.yml`), the Claude PR review (`claude-review.yml`), and the PR
-  template.
-- Docs: DECISIONS.md (D-001 to D-014), DATA.md, REPO_SETTINGS.md,
-  CHANGELOG.md, CITATION.cff, the MIT LICENSE, and an interim README.
-- `make ci` passes: 71 tests at 97% coverage, with the 85% floor set in
-  `pyproject.toml`. Pytest treats `ResourceWarning` as an error.
-- `.claude/skills/commit/` holds the commit procedure as a skill.
+- `config.py` loads `configs/baseline.yaml` and `configs/smoke.yaml` into
+  strict pydantic models. Every key is required and unknown keys are errors
+  (D-017). The sections so far are `variant`, `seed`, `folds`, `preprocess`,
+  and `patches`. Phase 2 adds model and training sections to both files and
+  to `Config`.
+- `data.py` (protected) holds `Sample`, which validates itself, and
+  `make_folds`. Folds are 14/2/4, numbered 1 to 5, depend only on the id set
+  and seed, and put images 25, 26, and 32 in different test folds (D-016).
+  `fold_rows` flattens folds for the database.
+- `datasets/drive.py` checks the exact layout and file formats, loads
+  training images with labels and test images without, and carries the
+  seven official abnormality notes verbatim (D-015, SPEC section 4 now
+  quotes them).
+- `db.py` gained `image_record`, `write_images` (safe to repeat, raises on
+  changed data), `write_fold_assignments`, and `run_query`. Built wheels
+  ship `sql/queries/`.
+- `sql/queries/04_leakage_audit.sql` (protected) returns zero rows on valid
+  folds and a named row for each kind of leak.
+- `preprocess.py` runs green channel (grayscale when off), CLAHE, a [0, 1]
+  scale, and FOV standardization. The border is zeroed before CLAHE and at
+  the end, so the output depends only on FOV pixels. The owner chose this
+  after the spec review found CLAHE saw the raw border (D-017).
+- `patches.py` builds a batched `tf.data` dataset of `(x, y, w)` patches,
+  with `w` the FOV patch for masking the loss. All randomness is drawn up
+  front from one NumPy generator, so one seed gives one sequence of batches.
+  Pass a new seed for each epoch.
+- `make check-data` also writes the 40 DRIVE `images` rows to
+  `results/experiments.db` and logs the pooled within-FOV vessel fraction
+  (D-018). It has been run on the real data. No document quotes the number
+  yet, and none may until it comes from a generated table (rule 2).
+- `make mutate` runs mutmut on `data.py`. It kills 153 of 156 mutants. The
+  3 survivors are equivalent: `strict=None` or no `strict` in the `zip` over
+  spread ids, and `replace=None` in `rng.choice`, all behave like `False`.
 
-The Claude review job fails until the owner adds the `ANTHROPIC_API_KEY`
-secret. Branch protection is also the owner's to set (docs/REPO_SETTINGS.md).
+## What phase 2 must deliver
 
-## What phase 1 must deliver
+The phase 2 line in PROGRESS.md says: U-Net, losses, resumable CV training
+with database logging and run manifests, `colab_runner.ipynb`, the smoke
+integration test, and the resumability tests. SPEC sections 7 (model, loss,
+training), 8 (`runs`, `fold_status`, `thresholds`, `training_history`), 14
+(the resumability tests and the smoke test), 16 (Colab workflow, resumable
+runs), and 17 (run manifest) give the details.
 
-The phase 1 line in PROGRESS.md says: DRIVE loader adapter with pathology
-metadata, validation, folds, preprocessing, patch sampling, the leakage
-audit query 04 (moved from phase 3, D-012), and their tests.
-SPEC sections 4, 5 (folds only), 6, 7 (preprocessing and patches), 8
-(`images` and `fold_assignments`), and 14 give the details.
-
-- `datasets/drive.py` loads images, labels, and FOV masks into the common
-  sample type in `data.py`. It must fail loudly on any layout mismatch
-  (section 4 gives the expected layout). The `images` rows include the
-  abnormality notes for images 25, 26, and 32, quoted verbatim from the
-  official site (rule 9). SPEC section 4 has the wording. Check it against
-  the site and record the retrieval date in a comment.
-- `retinal_vessels.config` and `configs/baseline.yaml` are deferred from
-  phase 0 (D-009). Use typed, validated config (pydantic is locked) where
-  unknown or missing keys are errors, with a test for each.
-- Folds: 5-fold over the 20 labeled images, split by whole image. Each fold
-  has 4 test, 2 val, and 14 train images, deterministic from the seed, and
-  stored in `fold_assignments`, numbered 1 to 5 (D-010). `data.py` is
-  protected (section 5), so edits prompt for approval. The required tests
-  say folds are disjoint and every image is `test` exactly once.
-- `sql/queries/04_leakage_audit.sql` (protected) returns rows only if an
-  image has two roles in one fold or is `test` in two folds. Test that it
-  returns zero rows on a valid database and rows on a leaky one. The schema
-  deliberately allows those leaky rows (D-007).
-- Preprocessing (`preprocess.py`) runs green channel, CLAHE, a [0, 1] scale,
-  and per-image standardization within the FOV. Each step can be toggled
-  from config.
-- Patch sampling (`patches.py`) builds seeded `tf.data` 64×64 patches with
-  centers inside the FOV, using flips, 90° rotations, and brightness and
-  contrast jitter. Test the shapes and that centers lie in the FOV.
-- SPEC section 6 says `check_data.py` also reports dataset stats. The
-  within-FOV vessel fraction must be computed from the data and quoted as
-  computed (section 4), and it belongs in `images.vessel_fraction_in_fov`.
-- PROGRESS.md follow-up: run `mutmut` on `data.py` and the fold code, and
-  add tests for any surviving mutants.
+- `model.py`: a small U-Net (3 to 4 levels, base 16 to 32 filters, batch
+  norm, dropout), every size from config.
+- `losses.py`: BCE + Dice (baseline) and Dice only (the ablation), masked
+  by the FOV weight `w` from `patches.py`.
+- `train.py` (CLI): full 5-fold CV for one config. Adam, early stopping on
+  validation-image Dice computed on whole validation images inside the FOV,
+  the best checkpoint per fold, and training curves in `training_history`.
+  A fold is marked complete in `fold_status` only after its checkpoint,
+  threshold, metrics, and history are all written. A restart skips complete
+  folds and retrains a `running` one from scratch.
+- A `runs` row and `results/<run_id>/manifest.json` for every run, through
+  `provenance.build_manifest` and `Config.as_json()` with
+  `provenance.config_hash`.
+- Required tests: interrupting a synthetic CV run after fold 2 and restarting
+  it trains folds 3 to 5 only, with the same fold assignments and database
+  state as an uninterrupted run. A fold left `running` is retrained. The
+  smoke test trains, predicts, evaluates, and writes tables end to end on
+  synthetic data in about two minutes on CPU.
+- `notebooks/colab_runner.ipynb` with only the section 16 steps.
 
 ## Decisions to raise with the owner
 
-- Reported runs use a T4 on the owner's paid Colab plan (D-013). No other
-  GPU decision is open.
-- Everything from the phase 0 review and the Claude review on PR #1 is
-  settled (D-010 to D-014). The owner declined a stricter commit-msg hook, since
-  the `/commit` skill covers the subject rules.
-- Phase 2 only: confirm the VS Code Colab extension's runtimes set
+- Early stopping and threshold choice need validation Dice on whole images,
+  which means sliding-window inference and a FOV-masked Dice. PROGRESS.md
+  puts sliding-window inference and the metrics in phase 3, and `metrics.py`
+  is protected (section 5). Ask whether phase 2 builds `predict.py` and the
+  Dice part of `metrics.py` now, or uses something smaller until phase 3.
+- The threshold rule (section 5: maximize validation Dice) needs a candidate
+  grid. Its spacing is a config setting to agree on.
+- What counts as an epoch: `patches.per_epoch` patches with seed
+  `seed + epoch` is the simplest reading. Confirm it, and the patience for
+  early stopping.
+- Confirm that the VS Code Colab extension's runtimes set
   `COLAB_RELEASE_TAG`, which `compute_platform` relies on. Colab installs
-  with `uv sync --locked` (D-011).
+  with `uv sync --locked` (D-011). Reported runs use a T4 (D-013).
+
+Optional items from the phase 1 review, not acted on:
+
+- `check_data.py` would log "abnormality notes on " with nothing after it
+  for a split with no abnormal images.
+- An `sqlite3.IntegrityError` from `write_images` escapes `check_data.py` as
+  a traceback, not a one-line logged error.
+- `FLIP_PROBABILITY = 0.5` in `patches.py` is a constant, not a config
+  setting.
+- The plan had `validate_sample` reject labels outside the FOV. It was
+  dropped because real DRIVE labels mark a few pixels outside it, and the
+  vessel fraction counts only pixels inside (D-017).
 
 ## Working notes
 
 - Protected files trigger an approval prompt, which is expected. They are
   hooks, CI, lockfiles, `data/CHECKSUMS.sha256`, docs/SPEC.md, and the
-  section 5 files (see `.claude/protected-paths`).
-- Pre-commit hooks are installed, including commit-msg. Write commit
-  messages to a scratch file and commit with `git commit -F <file>`, since
-  the Bash guard matches blocked flags anywhere in the command text.
+  section 5 files (see `.claude/protected-paths`). `metrics.py` is on that
+  list.
+- Write commit messages to a scratch file and commit with `git commit -F`,
+  since the Bash guard matches blocked flags anywhere in the command text.
 - Running one test file with `pytest` fails the 85% coverage floor. Use
-  `--no-cov` for partial runs, or `make test` for the full suite.
+  `--no-cov` for partial runs, or `make test` for the full suite. Add
+  `-p no:warnings` to hide TensorFlow's `gast` deprecation noise.
+- Pytest treats `ResourceWarning` as an error. Open PIL images with `with`.
+- Anything that calls a CLI's `main()` in process must restore the root
+  logger afterwards, or `setup_logging` in later tests becomes a no-op (see
+  `tests/unit/test_check_data.py`).
+- Tests that call `check_data.py` must pass `--db` into `tmp_path`, or they
+  write synthetic rows into the real `results/experiments.db`.
+- Pydantic strict mode rejects YAML lists for tuple fields, so `load_config`
+  validates through JSON.
+- mutmut 3 copies only the mutated file into `mutants/src`, so
+  `pyproject.toml` lists `src/` under `also_copy`. `make mutate` clears
+  `mutants/` first.
+- Pillow reads a GIF with a gray palette back as mode `L`, and an all-black
+  image saved with palette optimization as `P`. Save test masks with
+  `optimize=False`.
 - In zsh, `$VAR` holding a file list is not word-split. Use `xargs`.
-  `check_numbers.py` silently skips paths that do not exist.
-- macOS sed has no `\b`. Use perl for substitutions.
+  `check_numbers.py` skips itself until `results/tables` exists.
 - `uv run ruff format` rewrites files, so read them again before an Edit.
-- The `/finish-phase` slash command was not found in the VS Code extension
-  at first, then worked later in the same session. The cause is unknown.
 - Ask before pushing, opening a pull request, or changing the lockfile.
 - This file carries context between sessions. At the end of a session or
   phase, rewrite it for the next piece of work and replace anything out of
