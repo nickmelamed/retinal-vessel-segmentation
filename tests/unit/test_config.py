@@ -71,6 +71,9 @@ def test_rejects_unknown_nested_key(tmp_path: Path, baseline: dict[str, Any]) ->
         ("training", "deterministic_ops"),
         ("inference", "stride"),
         ("threshold", "divisions"),
+        (None, "evaluation"),
+        ("evaluation", "reliability_bins"),
+        ("evaluation", "thin_quantile"),
     ],
 )
 def test_rejects_missing_key(
@@ -104,6 +107,11 @@ def test_rejects_missing_key(
         ("training", "learning_rate", 0),
         ("inference", "stride", 256),
         ("threshold", "divisions", 1),
+        ("evaluation", "reliability_bins", 1),
+        ("evaluation", "reliability_bins", 10.0),
+        ("evaluation", "thin_quantile", 0),
+        ("evaluation", "thin_quantile", 1),
+        ("evaluation", "thin_quantile", True),
     ],
 )
 def test_rejects_bad_value(

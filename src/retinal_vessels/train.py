@@ -65,6 +65,7 @@ from retinal_vessels.provenance import (
     build_manifest,
     check_or_write_checksums,
     environment,
+    format_checksums,
     new_run_id,
     sha256_file,
     utc_timestamp,
@@ -104,6 +105,9 @@ class OutputDirs:
     def predictions(self, run_id: str) -> Path:
         return self.results / run_id / "predictions"
 
+    def prediction_hashes(self, run_id: str, fold: int) -> Path:
+        return self.predictions(run_id) / f"fold_{fold}.sha256"
+
 
 def derived_seed(*entropy: int) -> int:
     """Return a 32-bit seed mixed from ``entropy``, such as (seed, fold, epoch).
@@ -133,14 +137,33 @@ def _stack(data: Mapping[str, Prepared], ids: Sequence[str]) -> tuple[np.ndarray
     )
 
 
+def save_predictions(
+    dirs: OutputDirs, run_id: str, fold: int, probabilities: Mapping[str, np.ndarray]
+) -> None:
+    """Save a fold's test-image probabilities as ``<image_id>.npy``, then their SHA-256 values.
+
+    Evaluation checks the hashes, so a stale or swapped probability file is
+    caught before its metrics are computed (D-021).
+    """
+    out = dirs.predictions(run_id)
+    out.mkdir(parents=True, exist_ok=True)
+    for image_id, prob in probabilities.items():
+        np.save(out / f"{image_id}.npy", prob)
+    hashes = dirs.prediction_hashes(run_id, fold)
+    partial = hashes.with_name(f"{hashes.name}.partial")
+    names = [f"{image_id}.npy" for image_id in probabilities]
+    partial.write_text(format_checksums({n: sha256_file(out / n) for n in names}), encoding="utf-8")
+    os.replace(partial, hashes)
+
+
 def train_fold(
     run_id: str, fold: Fold, data: Mapping[str, Prepared], config: Config, dirs: OutputDirs
 ) -> FoldRecord:
     """Train one fold, predict its test images, and return what the fold writes.
 
-    Saves the best checkpoint by validation Dice and the test-image
-    probabilities to disk. The database is left to the caller, so a crash
-    here leaves the fold ``running``.
+    Saves the best checkpoint by validation Dice, the test-image probabilities,
+    and their SHA-256 values to disk. The database is left to the caller, so a
+    crash here leaves the fold ``running``.
     """
     import keras
 
@@ -185,15 +208,15 @@ def train_fold(
                 break
 
     best = keras.models.load_model(checkpoint, compile=False)
-    out = dirs.predictions(run_id)
-    out.mkdir(parents=True, exist_ok=True)
+    probabilities = {}
     test_metrics = []
     for image_id in fold.test:
         item = data[image_id]
         prob = predict_image(best, item.image, item.fov, config.inference)
-        np.save(out / f"{image_id}.npy", prob)
+        probabilities[image_id] = prob
         metrics = binary_metrics(binarize(prob, best_threshold_value), item.label, item.fov)
         test_metrics.append(ImageMetrics(DATASET, image_id, metrics))
+    save_predictions(dirs, run_id, fold.number, probabilities)
     return FoldRecord(
         run_id=run_id,
         fold=fold.number,

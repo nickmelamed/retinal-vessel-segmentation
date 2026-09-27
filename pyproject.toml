@@ -83,14 +83,23 @@ branch = true
 fail_under = 85
 show_missing = true
 
-# Mutation testing of the fold code (make mutate). Only the tests that
-# exercise data.py run, since the full suite would add minutes per mutant.
+# Mutation testing of the fold code and metrics (make mutate). Only the tests
+# that exercise data.py and metrics.py run, since the full suite would add
+# minutes per mutant.
 [tool.mutmut]
-source_paths = ["src/retinal_vessels/data.py"]
+source_paths = ["src/retinal_vessels/data.py", "src/retinal_vessels/metrics.py"]
 also_copy = ["src/", "tests/", "sql/", "configs/"]
-pytest_add_cli_args = ["--no-cov", "-p", "no:warnings"]
+pytest_add_cli_args = [
+    "--no-cov",
+    "-p",
+    "no:warnings",
+    "-p",
+    "tests.fixtures.single_thread_opencv",
+]
 pytest_add_cli_args_test_selection = [
     "tests/unit/test_data.py",
     "tests/unit/test_db_writes.py",
     "tests/unit/test_leakage_audit.py",
+    "tests/unit/test_metrics.py",
+    "tests/unit/test_metrics_properties.py",
 ]

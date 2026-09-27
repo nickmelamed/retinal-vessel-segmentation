@@ -40,6 +40,7 @@ def test_output_dirs() -> None:
     dirs = train.OutputDirs(results=Path("r"), models=Path("m"))
     assert dirs.checkpoint("run", 3) == Path("m/run/fold_3.keras")
     assert dirs.predictions("run") == Path("r/run/predictions")
+    assert dirs.prediction_hashes("run", 3) == Path("r/run/predictions/fold_3.sha256")
 
 
 def test_prepare_preprocesses_and_rejects_unlabeled(synthetic_data_root: Path) -> None:

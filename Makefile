@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup lock lock-check check-data train verify-checkpoints lint test smoke mutate ci agent-check
+.PHONY: help setup lock lock-check check-data train evaluate verify-checkpoints lint test smoke mutate ci agent-check
 
 EXPORT := uv export --no-dev --no-hashes --no-emit-project --quiet
 VARIANT ?= baseline
@@ -26,8 +26,11 @@ check-data:  ## Verify datasets against data/CHECKSUMS.sha256
 train:  ## Resumable 5-fold CV for one config (make train VARIANT=baseline)
 	uv run python -m retinal_vessels.train --config configs/$(VARIANT).yaml
 
-verify-checkpoints:  ## Check downloaded checkpoints against the database (RUN=<run_id>, default latest)
-	uv run python scripts/verify_checkpoints.py $(if $(RUN),--run-id $(RUN),)
+evaluate:  ## Fill AUCs, Brier, and thin/thick sensitivity from saved predictions (RUN=<run_id>, default latest finished)
+	uv run python -m retinal_vessels.evaluate $(if $(RUN),--run-id $(RUN),)
+
+verify-checkpoints:  ## Check downloaded checkpoints against the database (RUN=<run_id>, default latest, UNFINISHED=1 to check a run still training)
+	uv run python scripts/verify_checkpoints.py $(if $(RUN),--run-id $(RUN),) $(if $(UNFINISHED),--allow-unfinished,)
 
 lint:  ## ruff, ruff format --check, mypy, sqlfluff
 	uv run ruff check .
@@ -41,7 +44,7 @@ test:  ## pytest with coverage
 smoke:  ## End-to-end run on synthetic data
 	uv run pytest -m smoke --no-cov -q
 
-mutate:  ## Mutation testing of the fold code (settings in pyproject.toml)
+mutate:  ## Mutation testing of the fold code and metrics (settings in pyproject.toml)
 	rm -rf mutants
 	uv run mutmut run
 	uv run mutmut results

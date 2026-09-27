@@ -1,141 +1,133 @@
-# Handoff for planning phase 3
+# Handoff for planning phase 4
 
-This note is for a new Claude Code session that will plan phase 3
-(evaluation) with the owner. Read CLAUDE.md first, then PROGRESS.md, then
-SPEC sections 5, 8, and 14, and D-020 in docs/DECISIONS.md. Plan only. Wait
-for the owner's approval before building, and do the work on a
-`phase/3-evaluation` branch cut from `main` after phase 2 merges.
+This note is for a new Claude Code session that will plan phase 4 (the
+v0.1.0 ship point) with the owner. Read CLAUDE.md first, then PROGRESS.md,
+then SPEC sections 2, 5, 11, 12, and 17, and D-020 and D-021 in
+docs/DECISIONS.md. Plan only, and wait for the owner's approval before
+building. Cut `phase/4-ship` from `main` once phase 3 has merged.
 
 ## Where things stand (2026-09-27)
 
-Phase 2 is finished on `phase/2-model` and ticked in PROGRESS.md. Check
-`gh pr list` to see whether its pull request has merged. `make ci` passes on
-the branch.
+Phase 3 is complete on `phase/3-evaluation` and ticked in PROGRESS.md. Its
+pull request had not been opened when this note was written. Check with
+`gh pr list` and the owner.
 
-What phase 2 added:
+What phase 3 added:
 
-- Config sections `model`, `loss`, `training`, `inference`, and `threshold`
-  in both YAML files. `Config` checks that `patches.size` and
-  `inference.window` divide by `2**model.depth`. The threshold candidates are
-  `i / threshold.divisions` (D-020).
-- `model.py`: `build_unet(ModelConfig)`, sigmoid output, any input size that
-  divides by `2**depth`, transposed-convolution upsampling.
-- `losses.py`: FOV-masked soft Dice and BCE + Dice. The FOV weight travels
-  as the second channel of the target, built by `pack_target`.
-- `predict.py`: `predict_image(model, image, fov, InferenceConfig)`, sliding
-  windows averaged, zero outside the FOV.
-- `metrics.py` (protected): `confusion_counts`, `binary_metrics` (Dice,
-  sensitivity, specificity, precision, accuracy, predicted vessel fraction),
-  `binarize` (compares in float64), `threshold_grid`, `dice_per_threshold`,
-  `best_threshold`, and `selection_rule`. Zero-denominator ratios are None,
-  and Dice is 1 when both label and prediction are empty.
-- `db.py`: `insert_run`, `run_manifest`, `find_resumable_run`,
-  `stored_fold_rows`, `fold_statuses`, `start_fold`, `complete_fold` (one
-  transaction), and `finish_run`.
-- `train.py` CLI (`make train VARIANT=...`). Per fold, it stops early on the
-  best-threshold validation Dice, keeps the best checkpoint at
-  `models/<run_id>/fold_<k>.keras`, saves test-image probabilities to
-  `results/<run_id>/predictions/<image_id>.npy` (float32, 0 outside the FOV),
-  and writes `per_image_metrics` rows with the confusion metrics filled and
-  the AUC, Brier, thin/thick, and uncertainty columns NULL.
-- Resume rules (D-020). Only unfinished runs from a clean tree, matching on
-  variant, config hash, commit, and data hash, are resumed, and only from a
-  clean tree. Stored fold assignments and the environment must match.
-- `scripts/verify_checkpoints.py` (`make verify-checkpoints`) and
-  `notebooks/colab_runner.ipynb`.
-- `set_seed` now also seeds Keras.
+- `metrics.py` (protected) gained `auc_roc`, `average_precision` (reported
+  as AUC-PR), `brier`, `reliability` (a pooled `ReliabilityTable`),
+  `skeleton_radius`, `thin_edge`, and `width_sensitivity`. Everything is
+  computed on `label & fov`, so pixels outside the FOV never change a score.
+  The skeleton comes from scikit-image and the radius from OpenCV's exact
+  distance transform, and the lockfile did not change.
+- `evaluate.py` CLI (`make evaluate RUN=<run_id>`, default the latest
+  finished run). It fills `auc_roc`, `auc_pr`, `brier`, `thin_sensitivity`,
+  and `thick_sensitivity` in the existing `single` rows and writes
+  `results/<run_id>/evaluation.json`. That file holds each fold's threshold,
+  thin/thick edge, and bin pixel counts, the reliability table, and the
+  pooled Brier score. Before writing anything it requires a finished run,
+  data matching `runs.data_hash`, prediction files matching
+  `predictions/fold_<k>.sha256`, and recomputed confusion metrics equal to
+  the stored rows. A run trained from a clean tree is evaluated only from a
+  clean tree at its own commit, and `evaluation.json` records the
+  evaluating commit, dirty flag, and tag. Once the checks pass it rewrites
+  `manifest.json` from the database. Rerunning gives identical output.
+  Runs trained before phase 3 cannot be evaluated, since their stored
+  config has no `evaluation` section and they have no prediction hash
+  files. None of them is a reported run.
+- `train.py` saves predictions through `save_predictions`, which also
+  writes each fold's hash file.
+- `db.py`: `fold_thresholds`, `stored_image_metrics`, `EvaluationRecord`,
+  and `fill_evaluation` (one transaction, exactly one row per record).
+- The `evaluation` config section: `reliability_bins: 10` and
+  `thin_quantile: 0.5`. This changed the baseline config hash, which is
+  fine since no reported run exists.
+- SQL queries 01, 02, 03, and 05. The first three cover finished runs only.
+  Every row carries `is_reported`, so the phase 4 tables can keep to
+  reported runs.
+- `verify_checkpoints.py` fails on an unfinished run unless
+  `--allow-unfinished` (`make verify-checkpoints UNFINISHED=1`) is given.
+- The smoke test evaluates its run and requires the second training run,
+  in a new process, to reproduce the first exactly. It does on CPU.
+- `/scratch-train` runs on synthetic data only, and now also evaluates.
+- Hypothesis property tests in `tests/unit/test_metrics_properties.py`.
+  mutmut covers `data.py` and `metrics.py`: 737 of 768 mutants killed, and
+  the 31 survivors are equivalent (listed in commit `2d75828`).
 
-No reported run exists yet. The smoke config was run once on the real DRIVE
-data into scratch directories to check the pipeline, and nothing from it was
-kept. No number from any run may appear in a document until it comes from a
-generated table (rule 2).
+No reported run exists yet, and no number from any run may appear in a
+document until it comes from a generated table (rule 2).
 
-## What phase 3 must deliver
+## What phase 4 must deliver
 
-The phase 3 line in PROGRESS.md: the metrics that phase 2 did not build,
-calibration, thin and thick vessel sensitivity, and SQL queries 01, 02, 03,
-and 05. Also Hypothesis property tests for `metrics.py` (Dice in [0, 1],
-pixels outside the FOV never change a score, a perfect prediction scores 1)
-and `mutmut` on `metrics.py`.
+The phase 4 line in PROGRESS.md: reported baseline runs from a clean,
+tagged tree, then `make snapshot` and `make tables`, the hero,
+best/worst, training-curve, reliability, and thin/thick figures, the README
+first screen and its early sections, the first MODEL_CARD.md, badges, the
+social preview image, and `docs/REPO_SETTINGS.md`. It ends with a check of
+every document against section 2's rules, and then asking the owner to tag
+`v0.1.0`.
 
-- AUC-ROC and AUC-PR per image, the Brier score, and a reliability diagram
-  from pooled out-of-fold probabilities (SPEC section 5).
-- Thin and thick sensitivity: skeletonize the ground truth, estimate width
-  with a distance transform, and bin skeleton pixels. The bins are tuned on
-  training data only and documented (rule 3).
-- An evaluation step that reads the saved predictions and fills the NULL
-  columns of `per_image_metrics`, without retraining.
-- The smoke test gains its evaluate step (section 14). Tables come in phase 4.
+The first reported run happens on Colab (`/colab-run`). After downloading,
+check out the run's tagged commit with a clean tree on the laptop, then run
+`make verify-checkpoints` and `make evaluate`.
 
 ## Decisions to raise with the owner
 
-The owner wants every decision in this section, including the open review
-items below, addressed as soon as phase 3 begins. Raise them at the start of
-planning, before any other phase 3 work.
+Raise these at the start of planning, before any other phase 4 work.
 
-- AUCs need either scikit-learn, which changes the lockfile (ask first), or
-  a rank-based implementation in `metrics.py` tested against hand-worked
-  cases.
-- How evaluation writes its results: an `evaluate.py` CLI that updates the
-  existing rows, or new rows. The primary key is (run_id, dataset, image_id,
-  prediction_mode), so updating in place fits the schema without a change.
-- What "tune the width bins on training data" means under cross-validation:
-  per fold on that fold's training images, or once on all 20 labeled images.
-  The second uses held-out images to set a reporting bin, not a model
-  decision, but rule 3 should be checked with the owner.
-- The number of reliability-diagram bins, as a config setting.
-- Whether to store a SHA-256 for each prediction file in the database, so
-  that phase 3 lineage can detect a missing or mixed-up set. The spec review
-  suggested it. It would need a schema change, and `schema.sql` is protected.
-
-Items left open from the phase 2 reviews, for the owner to decide:
-
-- A crash after `finish_run` but before the final `write_manifest` leaves
-  `manifest.json` without `finished_at`, and a finished run is never resumed.
-  Writing the manifest from the database whenever `train` exits would close it.
-- The ambiguity and resume tests all run in one process. The smoke test runs
-  `train` twice in subprocesses, and comparing those two runs' thresholds would
-  also test determinism across processes.
-- `verify_checkpoints.py` could log how many folds are complete, so a partial
-  download is not mistaken for a whole run.
-- The commit message of `ca68ad8` ends with a sentence about the author's own
-  checking, which the style review flagged. Changing it means rewriting local
-  history before the push. It was left alone.
-- First Colab session: confirm that `COLAB_RELEASE_TAG` is set (the notebook
-  prints it), that a T4 is assigned, and that `enable_op_determinism` raises
-  no unimplemented-determinism error on the GPU for these ops.
+- The first Colab session still has to confirm that `COLAB_RELEASE_TAG` is
+  set (the notebook prints it), that a T4 is assigned, and that
+  `enable_op_determinism` raises no unimplemented-determinism error on the
+  GPU for these ops. If it raises, deciding what to do is the owner's call.
+- A reported run needs a tagged commit, and `v0.1.0` is meant to mark the
+  finished ship point. Which tag should the reported baseline run use, for
+  example a pre-release tag such as `v0.1.0-rc.1`?
+- The format and location of `make tables` output (markdown under
+  `results/tables/`, each with its run ids per section 17), and whether the
+  reliability and thin/thick figures read `evaluation.json` or the
+  database. `check_numbers.py` starts checking documents once
+  `results/tables` exists.
+- `make snapshot` (`scripts/snapshot_db.py`, which exports reported runs to
+  `results/release/`, metrics only) is not built yet. Decide what it
+  exports.
+- Figures need a plotting module (`retinal_vessels.figures`, SPEC section
+  11). Load the dataviz skill before writing chart code.
 
 ## Working notes
 
-- Protected files trigger an approval prompt, which is expected. They are
-  hooks, CI, lockfiles, `data/CHECKSUMS.sha256`, docs/SPEC.md, the Makefile,
-  and the section 5 files (see `.claude/protected-paths`), including
-  `metrics.py`. Edit them with the Edit tool, never through a shell script,
-  so the prompt appears.
+- Protected files trigger an approval prompt, which is expected. They
+  include `metrics.py`, `schema.sql`, the Makefile, lockfiles, CI, hooks,
+  and docs/SPEC.md (see `.claude/protected-paths`). Edit them with the Edit
+  tool, never a shell script. `ruff format` from the shell rewrites
+  protected files too, so run `ruff format --check` on them and fix them
+  with Edit.
 - Write commit messages to a scratch file and commit with `git commit -F`.
-  The allowed types are `feat`, `fix`, `refactor`, `perf`, `test`, `docs`,
-  `build`, `ci`, `chore`, and `exp`. `style` is rejected.
+  The subject is at most 72 characters. The allowed types are `feat`,
+  `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, and
+  `exp`.
 - Running one test file with `pytest` fails the 85% coverage floor. Use
   `--no-cov` for partial runs, or `make test` for the full suite. Add
   `-p no:warnings` to hide TensorFlow's `gast` deprecation noise.
 - Pytest treats `ResourceWarning` as an error. Open PIL images with `with`,
-  and close SQLite connections with `contextlib.closing`, since
-  `with sqlite3.connect(...)` only commits.
+  and close SQLite connections with `contextlib.closing`.
 - Anything that calls a CLI's `main()` in process must restore the root
-  logger afterwards (see `tests/unit/test_train.py`).
-- Tests that call `check_data.py` or `train` must pass `--db` and the output
-  directories into `tmp_path`.
-- The resume tests record runs against a throwaway git repository, so they
-  pass whether or not the working copy is dirty. A run of `train` from this
-  checkout with uncommitted changes always starts a new run.
-- Keras 3 seeds weights from its own generator. `set_seed` handles it, and
-  any new seeding must go through `set_seed`.
-- NumPy 2 compares a float32 array with a Python float in float32. Threshold
-  with `metrics.binarize`, never `prob >= t`.
-- In zsh, `$VAR` holding several arguments is not word-split. Use an array or
-  `xargs`.
-- `uv run ruff format` rewrites files, so read them again before an Edit.
-- `check_numbers.py` skips itself until `results/tables` exists.
+  logger afterwards (see `tests/unit/test_evaluate.py`).
+- Tests that call a CLI must pass `--db` and the output directories into
+  `tmp_path` or the synthetic data root.
+- `tests/unit/test_evaluate.py` builds a finished run from synthetic data
+  and fake probabilities without TensorFlow. Reuse its fixture for any test
+  that needs an evaluated run.
+- Keras 3 seeds weights from its own generator, and `set_seed` handles it.
+  Any new seeding goes through `set_seed`.
+- NumPy 2 compares a float32 array with a Python float in float32.
+  Threshold with `metrics.binarize`, never `prob >= t`.
+- Sums of fractions can round just above 1, which the schema's CHECK
+  constraints reject. Divide once at the end, as `average_precision` does.
+- On macOS, OpenCV's thread pool crashes a forked process. `make mutate`
+  loads `tests/fixtures/single_thread_opencv.py` to avoid it. Anything else
+  that forks after using OpenCV needs the same.
+- In zsh, `$VAR` holding several arguments is not word-split. Use an array
+  or `xargs`.
 - This file carries context between sessions. At the end of a session or
   phase, rewrite it for the next piece of work and replace anything out of
   date.

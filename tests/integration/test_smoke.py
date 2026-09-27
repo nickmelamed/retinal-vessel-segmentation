@@ -4,7 +4,9 @@ Write synthetic data, record and verify its checksums through the real
 ``check_data.py`` CLI, which also writes the ``images`` rows. Then build the
 folds, check them with the leakage audit, sample a batch of patches, and
 write a run manifest. Finally, train the full smoke cross-validation through
-the ``train`` CLI, as ``make train`` does.
+the ``train`` CLI, as ``make train`` does, evaluate it through the
+``evaluate`` CLI, and train again in a new process, which must reproduce
+the first run exactly.
 """
 
 import json
@@ -191,6 +193,39 @@ def test_training_cli_runs_cross_validation(synthetic_data_root: Path, tmp_path:
     assert manifest["finished_at"] is not None
     assert manifest["config"]["variant"] == "smoke"
 
+    evaluated = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "retinal_vessels.evaluate",
+            "--data-root",
+            str(synthetic_data_root),
+            "--checksums",
+            str(synthetic_data_root / "CHECKSUMS.sha256"),
+            "--db",
+            str(db),
+            "--results-dir",
+            str(results),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert evaluated.returncode == 0, evaluated.stderr
+    assert f"Evaluated 20 images of run {run_id}" in evaluated.stderr
+    summary = json.loads((results / run_id / "evaluation.json").read_text())
+    assert [f["fold"] for f in summary["folds"]] == [1, 2, 3, 4, 5]
+    with closing(connect(db)) as conn:
+        unevaluated = conn.execute(
+            "SELECT COUNT(*) FROM per_image_metrics "
+            "WHERE auc_roc IS NULL OR auc_pr IS NULL OR brier IS NULL"
+        ).fetchone()
+        assert unevaluated == (0,)
+        assert len(run_query(conn, "01_fold_summary")) == 5
+        assert len(run_query(conn, "02_worst_images")) == 20
+        assert len(run_query(conn, "05_threshold_log")) == 5
+        assert run_query(conn, "04_leakage_audit") == []
+
     again = subprocess.run(
         [sys.executable, "-m", "retinal_vessels.train", *args],
         capture_output=True,
@@ -199,3 +234,22 @@ def test_training_cli_runs_cross_validation(synthetic_data_root: Path, tmp_path:
     )
     assert again.returncode == 0, again.stderr
     assert "Started run" in again.stderr
+
+    # Deterministic ops are on in the smoke config, so a second process must
+    # choose the same thresholds and reach the same Dice on every image.
+    with closing(connect(db)) as conn:
+        (second,) = conn.execute("SELECT run_id FROM runs WHERE run_id != ?", (run_id,)).fetchone()
+
+        def outcome(run: str) -> tuple[list[tuple[object, ...]], list[tuple[object, ...]]]:
+            thresholds = conn.execute(
+                "SELECT fold, threshold, val_dice FROM thresholds WHERE run_id = ? ORDER BY fold",
+                (run,),
+            ).fetchall()
+            dice = conn.execute(
+                "SELECT image_id, fold, dice FROM per_image_metrics WHERE run_id = ? "
+                "ORDER BY image_id",
+                (run,),
+            ).fetchall()
+            return thresholds, dice
+
+        assert outcome(second) == outcome(run_id)
