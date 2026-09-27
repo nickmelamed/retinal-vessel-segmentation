@@ -132,3 +132,15 @@ Query 04 was scheduled for phase 3, but phase 1 is the first phase that
 writes `fold_assignments`. The owner approved moving query 04 and its two
 tests (zero rows on a valid database, rows on a leaky one) into phase 1, so
 the fold code is audited from the first commit that can leak.
+
+## D-013 Reported runs use a T4 on a paid Colab plan (2026-09-26)
+
+The owner has a paid Colab plan, so the GPU type is a choice rather than
+whatever the free tier assigns. Every reported run uses a T4. The whole
+project needs roughly 20 to 25 fold trainings of a small U-Net, an estimate
+of a few T4 hours, and at this size training is likely limited by patch
+preparation on the CPU more than by the GPU. The T4 is the most reliably
+available Colab GPU and the cheapest in compute units, and it matches
+SPEC section 16. If T4s become hard to get, the small total compute means
+every reported run can be repeated on one other GPU type, keeping the
+same-hardware rule.

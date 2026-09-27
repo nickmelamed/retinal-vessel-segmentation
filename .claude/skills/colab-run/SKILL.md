@@ -3,7 +3,7 @@ name: colab-run
 description: Steps for a reported GPU run on Google Colab. Use when preparing, running, or recovering a Colab training or evaluation session.
 ---
 
-Reported GPU runs happen on Colab (free tier, T4) through the VS Code Colab
+Reported GPU runs happen on Colab (paid plan, always a T4, D-013) through the VS Code Colab
 extension. The session is disposable. `notebooks/colab_runner.ipynb` holds
 only these steps and no project logic.
 

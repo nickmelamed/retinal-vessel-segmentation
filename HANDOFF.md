@@ -89,11 +89,8 @@ SPEC sections 4, 5 (folds only), 6, 7 (preprocessing and patches), 8
 
 ## Decisions to raise with the owner
 
-- **Which GPU for reported runs.** The owner has a paid Colab plan, while
-  SPEC section 16 assumes the free tier on a T4. Every reported run must use
-  the same GPU type. Ask which type to standardize on, then update SPEC 16
-  (protected) and log it in DECISIONS.md. Do not write the owner's account
-  details into the repo.
+- Reported runs use a T4 on the owner's paid Colab plan (D-013). No other
+  GPU decision is open.
 - Everything from the phase 0 review is settled (D-010 to D-012 and the
   commits on PR #1). The owner declined a stricter commit-msg hook, since
   the `/commit` skill covers the subject rules.

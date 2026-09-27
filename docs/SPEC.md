@@ -382,7 +382,7 @@ Git and commit discipline is in docs/CONTRIBUTING.md.
 ## 16. Compute
 
 - **Development, tests, and the smoke run:** the owner's laptop, on CPU. On Windows with an NVIDIA GPU, TensorFlow GPU support requires WSL2; on a Mac, use CPU rather than the Metal plugin unless there's a clear reason.
-- **Reported GPU runs:** Google Colab (free tier, T4), driven from VS Code through the official Colab extension (Select Kernel → Colab → New Colab Server). The code runs on Colab's machine, not the laptop, so every session is treated as a fresh, disposable environment.
+- **Reported GPU runs:** Google Colab (paid plan, T4 selected for every reported run, D-013), driven from VS Code through the official Colab extension (Select Kernel → Colab → New Colab Server). The code runs on Colab's machine, not the laptop, so every session is treated as a fresh, disposable environment.
 - **Colab workflow** (implemented in `notebooks/colab_runner.ipynb`, which contains no project logic, only these steps):
   1. Clone the repo and check out the **tagged commit** being run. Never edit code in the Colab session; edit locally, commit, push, and pull. This keeps reported runs on clean, tagged commits (section 2).
   2. Install uv and the locked environment with `uv sync --locked`, exactly as CI does, and print the versions, including the GPU (`nvidia-smi`). See D-011.
