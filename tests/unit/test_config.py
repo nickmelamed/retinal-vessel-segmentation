@@ -28,6 +28,15 @@ def test_shipped_configs_load(name: str) -> None:
     assert config.preprocess.clahe_tile_grid == (8, 8)
 
 
+def test_every_config_shares_one_fold_seed() -> None:
+    # SPEC section 7 pairs per-image results across variants, which only
+    # works if every variant trains and tests on the same folds.
+    configs = [load_config(path) for path in sorted(CONFIGS.glob("*.yaml"))]
+    assert len(configs) >= 2
+    assert len({c.folds.seed for c in configs}) == 1
+    assert len({(c.folds.n_folds, c.folds.n_val) for c in configs}) == 1
+
+
 def test_round_trips_through_json(tmp_path: Path, baseline: dict[str, Any]) -> None:
     config = load_config(write(tmp_path, baseline))
     assert Config.model_validate_json(config.as_json()) == config
@@ -46,7 +55,9 @@ def test_rejects_unknown_nested_key(tmp_path: Path, baseline: dict[str, Any]) ->
         load_config(write(tmp_path, baseline))
 
 
-@pytest.mark.parametrize(("section", "key"), [(None, "seed"), ("patches", "size")])
+@pytest.mark.parametrize(
+    ("section", "key"), [(None, "seed"), ("folds", "seed"), ("patches", "size")]
+)
 def test_rejects_missing_key(
     tmp_path: Path, baseline: dict[str, Any], section: str | None, key: str
 ) -> None:
@@ -65,6 +76,7 @@ def test_rejects_missing_key(
         ("preprocess", "clahe_tile_grid", [8, 0]),
         ("patches", "contrast_range", [1.1, 0.9]),
         ("folds", "n_val", 0),
+        ("folds", "seed", -1),
         ("patches", "flip_probability", 1.5),
         ("patches", "flip_probability", -0.1),
         ("patches", "flip_probability", True),

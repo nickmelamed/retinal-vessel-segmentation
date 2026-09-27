@@ -108,7 +108,7 @@ def test_pipeline_is_wired_end_to_end(synthetic_data_root: Path, tmp_path: Path)
         abnormal,
         n_folds=config.folds.n_folds,
         n_val=config.folds.n_val,
-        seed=config.seed,
+        seed=config.folds.seed,
     )
     with closing(connect(tmp_path / "results" / "experiments.db")) as conn:
         create_schema(conn)

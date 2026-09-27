@@ -243,3 +243,23 @@ or the path given with `--db`. Repeating the command adds nothing. A stored
 row that no longer matches the data is an error, like a checksum mismatch
 (D-004). The pooled fraction is only logged, and it goes into documents
 through the tables generated from the database.
+
+## D-019 The folds have their own seed (2026-09-27)
+
+This amends D-016. The folds used to be drawn with the top-level `seed`,
+which also drives patch sampling and, from phase 2, training. SPEC section 7
+needs every variant to use the same fold assignment so that R can pair
+per-image results, and that held only because every config copied the same
+seed. The phase 5 rerun-variance measurement also needs new training seeds
+on unchanged folds, which a shared seed cannot give.
+
+The owner chose a separate `folds.seed` over a check at training time that
+compares a new run's folds with the baseline's. The check could only fire
+once a baseline run existed, and it would have refused the rerun-variance
+runs it was meant to protect. A test instead requires every file in
+`configs/` to share one `folds.seed` and the same fold sizes, so a drifting
+config fails `make ci` before any run exists.
+
+`folds.seed` is 20260926, the value the baseline already used, so the
+baseline's fold assignment is unchanged. The smoke config now uses the
+baseline's folds too, and keeps its own top-level seed.
