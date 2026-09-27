@@ -147,10 +147,10 @@ FINISHED = {"finished_at": "2026-09-26T01:00:00Z"}
         (
             "runs",
             {**RUN, **FINISHED, "git_tag": "v0.1.0", "git_dirty": 1, "is_reported": 1},
-            "git_dirty = 0",
+            "reported_needs_clean_tree",
         ),
-        ("runs", {**RUN, **FINISHED, "is_reported": 1}, "git_tag IS NOT NULL"),
-        ("runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1}, "finished_at IS NOT NULL"),
+        ("runs", {**RUN, **FINISHED, "is_reported": 1}, "reported_needs_tag"),
+        ("runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1}, "reported_needs_finish"),
         ("runs", {**RUN, "seed": "zero"}, "runs.seed"),
     ],
 )
@@ -213,7 +213,7 @@ def test_a_finished_clean_tagged_run_can_be_reported(conn: sqlite3.Connection) -
 
 
 def test_an_unfinished_run_cannot_be_reported(conn: sqlite3.Connection) -> None:
-    with pytest.raises(sqlite3.IntegrityError, match="finished_at IS NOT NULL"):
+    with pytest.raises(sqlite3.IntegrityError, match="reported_needs_finish"):
         insert(conn, "runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1})
 
 
@@ -229,7 +229,7 @@ def test_external_runs_record_model_and_threshold_together(conn: sqlite3.Connect
         "frozen_at": "2026-09-26T02:00:00Z",
     }
     insert(conn, "frozen_models", frozen)
-    pairing = "frozen_model_id IS NULL"
+    pairing = "model_and_threshold_together"
     with pytest.raises(sqlite3.IntegrityError, match=pairing):
         insert(conn, "runs", {**RUN, "run_id": "e1", "frozen_model_id": "m1"})
     with pytest.raises(sqlite3.IntegrityError, match=pairing):

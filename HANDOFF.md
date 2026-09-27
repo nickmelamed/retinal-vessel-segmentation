@@ -28,8 +28,8 @@ What exists now:
   Folds count from 1, and fold 0 in `training_history` is the frozen model
   (D-010). A reported run must be finished, clean, and tagged (`runs.git_tag`). An
   external run sets `frozen_model_id` and `applied_threshold` together. Query
-  09 finds external runs from their metrics on `external` images, not from
-  those columns (D-007). Timestamps are
+  09, when written, must find external runs from their metrics on `external`
+  images, not from those columns (D-007). Timestamps are
   whole-second UTC ending in Z, and abnormal images must carry their note. Built
   wheels carry a copy of the schema.
 - `scripts/check_data.py` (`make check-data`) verifies `data/DRIVE` against
@@ -48,7 +48,7 @@ What exists now:
   template.
 - Docs: DECISIONS.md (D-001 to D-014), DATA.md, REPO_SETTINGS.md,
   CHANGELOG.md, CITATION.cff, the MIT LICENSE, and an interim README.
-- `make ci` passes: 73 tests at 97% coverage, with the 85% floor set in
+- `make ci` passes: 72 tests at 97% coverage, with the 85% floor set in
   `pyproject.toml`. Pytest treats `ResourceWarning` as an error.
 - `.claude/skills/commit/` holds the commit procedure as a skill.
 
