@@ -83,5 +83,7 @@ make agent-check    # the fast checks the Stop hook runs
 - Library code logs with `logging`, never `print`. No magic numbers, all
   settings come from `configs/*.yaml`.
 - Colab sessions are disposable. Never edit code there (see `/colab-run`).
+- If you repeat a multi-step procedure, or I give you the same instructions
+  twice, propose a skill for it in `.claude/skills/` and wait for approval.
 - When compacting, keep the modified files, the current plan, the current
   phase, and any failing checks.

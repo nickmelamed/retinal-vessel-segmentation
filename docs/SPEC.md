@@ -86,7 +86,7 @@ Per image, then summarized (mean, SD, median, min, max, and bootstrap 95% CIs ac
 ├── LICENSE                   # code license only; the data has its own terms
 ├── pyproject.toml            # package metadata, deps, ruff/mypy/pytest/coverage config
 ├── uv.lock                   # locked Python environment (source of truth)
-├── requirements.txt          # generated from uv.lock for Colab; never hand-edited
+├── requirements.txt          # generated from uv.lock for pip users; never hand-edited
 ├── .python-version           # pinned Python version
 ├── .pre-commit-config.yaml
 ├── .gitattributes
@@ -331,7 +331,7 @@ All training entry points must also run on Colab through `notebooks/colab_runner
 
 ### Python
 
-- Installable package under `src/retinal_vessels/` (src layout), Python version pinned in `.python-version`, dependencies managed with `uv`. `uv.lock` is the source of truth; `requirements.txt` is generated from it for Colab and CI checks that the two agree.
+- Installable package under `src/retinal_vessels/` (src layout), Python version pinned in `.python-version`, dependencies managed with `uv`. `uv.lock` is the source of truth; `requirements.txt` is generated from it for pip users and CI checks that the two agree. Colab installs from `uv.lock` (D-011).
 - Type hints everywhere; `mypy --strict` on the package. NumPy-style docstrings on every public function and class, explaining *why* where it isn't obvious, including array shapes and dtypes.
 - Small, single-purpose modules with pure functions where possible; I/O at the edges. No logic in notebooks; the notebook only reads artifacts and displays them.
 - All settings come from `configs/*.yaml`, loaded into typed, validated config objects by `retinal_vessels.config`. Unknown or missing keys are errors. No magic numbers in code.
@@ -382,10 +382,10 @@ Git and commit discipline is in docs/CONTRIBUTING.md.
 ## 16. Compute
 
 - **Development, tests, and the smoke run:** the owner's laptop, on CPU. On Windows with an NVIDIA GPU, TensorFlow GPU support requires WSL2; on a Mac, use CPU rather than the Metal plugin unless there's a clear reason.
-- **Reported GPU runs:** Google Colab (free tier, T4), driven from VS Code through the official Colab extension (Select Kernel → Colab → New Colab Server). The code runs on Colab's machine, not the laptop, so every session is treated as a fresh, disposable environment.
+- **Reported GPU runs:** Google Colab (paid plan, T4 selected for every reported run, D-013), driven from VS Code through the official Colab extension (Select Kernel → Colab → New Colab Server). The code runs on Colab's machine, not the laptop, so every session is treated as a fresh, disposable environment.
 - **Colab workflow** (implemented in `notebooks/colab_runner.ipynb`, which contains no project logic, only these steps):
   1. Clone the repo and check out the **tagged commit** being run. Never edit code in the Colab session; edit locally, commit, push, and pull. This keeps reported runs on clean, tagged commits (section 2).
-  2. Install the environment from `requirements.txt` and print the versions, including the GPU (`nvidia-smi`).
+  2. Install uv and the locked environment with `uv sync --locked`, exactly as CI does, and print the versions, including the GPU (`nvidia-smi`). See D-011.
   3. Place the DRIVE data on the Colab machine (the extension's upload feature; Google Drive mounting isn't supported natively in the extension), then run `make check-data` so the checksums must match before any training.
   4. Run the `make` targets.
   5. Before the session ends, download `results/experiments.db`, `results/<run_id>/` manifests, and checkpoints to the laptop, and verify the checkpoint SHA-256 values against the database.
@@ -396,7 +396,7 @@ Git and commit discipline is in docs/CONTRIBUTING.md.
 ## 17. Reproducibility and provenance
 
 - **Environment:** Python locked by `uv.lock` plus `.python-version`; R by `renv.lock`; the Quarto version recorded in the README. The `Dockerfile` builds a CPU environment that can run `make reproduce` end to end; record its base image digest.
-- **Data provenance:** `make check-data` computes SHA-256 checksums of every DRIVE file and compares them to the committed `data/CHECKSUMS.sha256` (it writes the file on first run). A mismatch is an error. Each run stores an aggregate data hash.
+- **Data provenance:** `make check-data` computes SHA-256 checksums of every DRIVE file and compares them to the committed `data/CHECKSUMS.sha256`, wherever the data lives. It writes that file only when it is missing and `--init` is passed, and never changes an existing one (D-014). A mismatch is an error. Each run stores an aggregate data hash.
 - **Run manifest:** every run writes to the `runs` table and to `results/<run_id>/manifest.json`: run ID, config and config hash, seed, git commit, dirty-tree flag, data hash, Python/TensorFlow/CUDA versions, device, deterministic-ops flag, and start and end times.
 - **Artifact lineage:** every table in `results/tables/` and every figure is generated by a script from the database, and records the run IDs it came from (in a caption, footnote, or sidecar file). Regenerating them must be one command (`make tables figures report`).
 - **Determinism:** document what is and isn't bit-for-bit reproducible (GPU nondeterminism) and, in the README, how much metrics vary across reruns with the same seed, measured rather than assumed.

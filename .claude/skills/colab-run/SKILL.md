@@ -3,13 +3,14 @@ name: colab-run
 description: Steps for a reported GPU run on Google Colab. Use when preparing, running, or recovering a Colab training or evaluation session.
 ---
 
-Reported GPU runs happen on Colab (free tier, T4) through the VS Code Colab
+Reported GPU runs happen on Colab (paid plan, always a T4, D-013) through the VS Code Colab
 extension. The session is disposable. `notebooks/colab_runner.ipynb` holds
 only these steps and no project logic.
 
 1. Clone the repo and check out the tagged commit being run. Never edit code
    in the Colab session. Edit locally, commit, push, and pull.
-2. Install from `requirements.txt` and print versions, including `nvidia-smi`.
+2. Install uv, run `uv sync --locked` (the same environment as CI, see D-011),
+   and print versions, including `nvidia-smi`.
 3. Upload the data to the Colab machine, then run `make check-data`. The
    checksums must match before any training.
 4. Run the `make` targets.

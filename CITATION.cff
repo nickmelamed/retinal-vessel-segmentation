@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, and cite the DRIVE dataset paper."
+title: "Retinal vessel segmentation on DRIVE: a self-directed project"
+type: software
+authors:
+  - family-names: Melamed
+    given-names: Nick
+license: MIT
+repository-code: "https://github.com/nickmelamed/retinal-vessel-segmentation"
+keywords:
+  - medical-imaging
+  - image-segmentation
+  - retinal-imaging
+  - u-net
+references:
+  - type: article
+    title: "Ridge-based vessel segmentation in color images of the retina"
+    authors:
+      - family-names: Staal
+        given-names: J.
+      - family-names: Abràmoff
+        given-names: M. D.
+      - family-names: Niemeijer
+        given-names: M.
+      - family-names: Viergever
+        given-names: M. A.
+      - family-names: van Ginneken
+        given-names: B.
+    journal: "IEEE Transactions on Medical Imaging"
+    volume: 23
+    issue: 4
+    start: 501
+    end: 509
+    year: 2004
+    doi: "10.1109/TMI.2004.825627"

@@ -2,8 +2,6 @@
 # CLAUDE.md, AGENTS.md, PROGRESS.md, CHANGELOG.md, and .claude/* are skipped by default.
 # The design spec keeps the owner's original formatting.
 docs/SPEC.md
-# Copied verbatim from the original CLAUDE.md section 15. Restyle it in phase 0.
-docs/CONTRIBUTING.md
 # Agent-facing handoff notes name CLAUDE.md on purpose. The default *handoff*.md
 # pattern is case-sensitive, so list the uppercase name too.
 HANDOFF.md
