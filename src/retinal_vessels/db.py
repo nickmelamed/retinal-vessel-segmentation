@@ -2,7 +2,11 @@
 
 import logging
 import sqlite3
+from collections.abc import Iterable
+from dataclasses import astuple, dataclass, fields
 from pathlib import Path
+
+from retinal_vessels.data import Fold, Sample, fold_rows
 
 logger = logging.getLogger(__name__)
 
@@ -62,3 +66,86 @@ def create_schema(conn: sqlite3.Connection, schema_path: Path = SCHEMA_PATH) -> 
     if found != SCHEMA_VERSION:
         raise RuntimeError(f"{schema_path} sets version {found}, code expects {SCHEMA_VERSION}")
     logger.debug("Schema at version %d", SCHEMA_VERSION)
+
+
+@dataclass(frozen=True)
+class ImageRecord:
+    """One row of the ``images`` table. Field order matches the columns."""
+
+    dataset: str
+    image_id: str
+    patient_id: str | None
+    split: str
+    has_abnormality: int
+    abnormality_note: str | None
+    fov_pixels: int
+    fov_source: str
+    vessel_fraction_in_fov: float | None
+    has_labels: int
+
+
+IMAGE_COLUMNS = tuple(f.name for f in fields(ImageRecord))
+
+
+def image_record(sample: Sample, fov_source: str = "official") -> ImageRecord:
+    """Summarize a sample as its ``images`` row.
+
+    The vessel fraction counts labeled pixels inside the FOV only, since some
+    DRIVE labels mark a few pixels outside it. It is None without labels.
+    """
+    fov_pixels = int(sample.fov.sum())
+    fraction = None
+    if sample.label is not None:
+        fraction = float((sample.label & sample.fov).sum()) / fov_pixels
+    return ImageRecord(
+        dataset=sample.dataset,
+        image_id=sample.image_id,
+        patient_id=sample.patient_id,
+        split=sample.split,
+        has_abnormality=int(sample.has_abnormality),
+        abnormality_note=sample.abnormality_note,
+        fov_pixels=fov_pixels,
+        fov_source=fov_source,
+        vessel_fraction_in_fov=fraction,
+        has_labels=int(sample.label is not None),
+    )
+
+
+def write_images(conn: sqlite3.Connection, records: Iterable[ImageRecord]) -> int:
+    """Insert image rows and return how many were new.
+
+    A row already present with identical values is left alone, so this is
+    safe to repeat. A row present with different values raises
+    ``ValueError``, since that means the data on disk changed.
+    """
+    cols = ", ".join(IMAGE_COLUMNS)
+    marks = ", ".join("?" for _ in IMAGE_COLUMNS)
+    added = 0
+    with conn:
+        for record in records:
+            existing = conn.execute(
+                f"SELECT {cols} FROM images WHERE dataset = ? AND image_id = ?",
+                (record.dataset, record.image_id),
+            ).fetchone()
+            if existing is None:
+                conn.execute(f"INSERT INTO images ({cols}) VALUES ({marks})", astuple(record))
+                added += 1
+            elif tuple(existing) != astuple(record):
+                raise ValueError(
+                    f"images row for {record.dataset} {record.image_id} differs from the data: "
+                    f"stored {tuple(existing)}, computed {astuple(record)}"
+                )
+    return added
+
+
+def write_fold_assignments(
+    conn: sqlite3.Connection, run_id: str, dataset: str, folds: Iterable[Fold]
+) -> None:
+    """Record every image's role in every fold of ``run_id``, in one transaction."""
+    rows = [(run_id, fold, dataset, image_id, role) for fold, image_id, role in fold_rows(folds)]
+    with conn:
+        conn.executemany(
+            "INSERT INTO fold_assignments (run_id, fold, dataset, image_id, role) "
+            "VALUES (?, ?, ?, ?, ?)",
+            rows,
+        )
