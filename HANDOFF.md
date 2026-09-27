@@ -69,6 +69,10 @@ and `mutmut` on `metrics.py`.
 
 ## Decisions to raise with the owner
 
+The owner wants every decision in this section, including the open review
+items below, addressed as soon as phase 3 begins. Raise them at the start of
+planning, before any other phase 3 work.
+
 - AUCs need either scikit-learn, which changes the lockfile (ask first), or
   a rank-based implementation in `metrics.py` tested against hand-worked
   cases.
