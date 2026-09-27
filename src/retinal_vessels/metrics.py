@@ -150,6 +150,67 @@ def brier(probability: np.ndarray, label: np.ndarray, fov: np.ndarray) -> float:
     return float(np.mean((p - t) ** 2))
 
 
+@dataclass(frozen=True)
+class ReliabilityTable:
+    """Pooled calibration of many images, for the reliability diagram.
+
+    Bin ``i`` holds probabilities in ``[edges[i], edges[i + 1])``, and the
+    last bin also holds 1. The mean probability and vessel fraction of an
+    empty bin are None.
+    """
+
+    edges: tuple[float, ...]
+    counts: tuple[int, ...]
+    mean_probability: tuple[float | None, ...]
+    vessel_fraction: tuple[float | None, ...]
+    pooled_brier: float
+
+
+def reliability(
+    probabilities: Sequence[np.ndarray],
+    labels: Sequence[np.ndarray],
+    fovs: Sequence[np.ndarray],
+    n_bins: int,
+) -> ReliabilityTable:
+    """Pool every FOV pixel of every image into ``n_bins`` equal-width probability bins.
+
+    Probabilities outside [0, 1] raise ``ValueError``.
+    """
+    if n_bins < 2:
+        raise ValueError(f"n_bins must be at least 2, got {n_bins}")
+    if not probabilities or not len(probabilities) == len(labels) == len(fovs):
+        raise ValueError(
+            f"need matching, non-empty sequences, got {len(probabilities)} probabilities, "
+            f"{len(labels)} labels, {len(fovs)} FOV masks"
+        )
+    edges = np.arange(n_bins + 1) / n_bins
+    counts = np.zeros(n_bins, dtype=np.int64)
+    prob_sums = np.zeros(n_bins)
+    vessel_sums = np.zeros(n_bins)
+    squared_error = 0.0
+    for probability, label, fov in zip(probabilities, labels, fovs, strict=True):
+        p, t = _scores(probability, label, fov)
+        if p.min() < 0 or p.max() > 1:
+            raise ValueError(f"probabilities must lie in [0, 1], got [{p.min()}, {p.max()}]")
+        # Like the threshold grid, a probability on an edge goes to the upper bin.
+        index = np.minimum(np.searchsorted(edges, p, side="right") - 1, n_bins - 1)
+        counts += np.bincount(index, minlength=n_bins)
+        prob_sums += np.bincount(index, weights=p, minlength=n_bins)
+        vessel_sums += np.bincount(index, weights=t, minlength=n_bins)
+        squared_error += float(np.sum((p - t) ** 2))
+
+    def per_bin(sums: np.ndarray) -> tuple[float | None, ...]:
+        return tuple(None if c == 0 else float(s / c) for s, c in zip(sums, counts, strict=True))
+
+    return ReliabilityTable(
+        edges=tuple(float(e) for e in edges),
+        counts=tuple(int(c) for c in counts),
+        mean_probability=per_bin(prob_sums),
+        vessel_fraction=per_bin(vessel_sums),
+        pooled_brier=squared_error / int(counts.sum()),
+    )
+
+
 def threshold_grid(divisions: int) -> np.ndarray:
     """Return the candidate thresholds ``i / divisions`` for i = 1 .. divisions - 1."""
     if divisions < 2:

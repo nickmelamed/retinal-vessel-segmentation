@@ -15,6 +15,7 @@ from retinal_vessels.metrics import (
     confusion_counts,
     dice,
     dice_per_threshold,
+    reliability,
     selection_rule,
     threshold_grid,
 )
@@ -253,3 +254,38 @@ def test_ranking_scores_match_brute_force(
     else:
         assert ap is None
     assert brier(prob, label, fov) == pytest.approx(float(np.mean((p - t) ** 2)))
+
+
+def test_reliability_by_hand() -> None:
+    # Bins of width 1/4. A probability on an edge goes up a bin, and 1.0 stays
+    # in the last. The 0.95 outside the first FOV must not count.
+    first = np.array([[0.05, 0.5, 1.0, 0.95]], dtype=np.float32)
+    second = np.array([[0.5]], dtype=np.float32)
+    table = reliability(
+        [first, second],
+        [b([[1, 0, 1, 0]]), b([[1]])],
+        [b([[1, 1, 1, 0]]), b([[1]])],
+        n_bins=4,
+    )
+    assert table.edges == (0.0, 0.25, 0.5, 0.75, 1.0)
+    assert table.counts == (1, 0, 2, 1)
+    assert table.mean_probability == pytest.approx((0.05, None, 0.5, 1.0))
+    assert table.vessel_fraction == (1.0, None, 0.5, 1.0)
+    assert table.pooled_brier == pytest.approx((0.95**2 + 0.5**2 + 0 + 0.5**2) / 4)
+
+
+def test_reliability_rejects_bad_inputs() -> None:
+    prob = np.array([[0.2, 0.6]], dtype=np.float32)
+    label, fov = b([[1, 0]]), b([[1, 1]])
+    with pytest.raises(ValueError, match="at least 2"):
+        reliability([prob], [label], [fov], n_bins=1)
+    with pytest.raises(ValueError, match="matching"):
+        reliability([prob], [label, label], [fov], n_bins=10)
+    with pytest.raises(ValueError, match="matching"):
+        reliability([], [], [], n_bins=10)
+    outside = np.array([[1.5, 0.6]], dtype=np.float32)
+    with pytest.raises(ValueError, match=r"\[0, 1\]"):
+        reliability([outside], [label], [fov], n_bins=10)
+    negative = np.array([[-0.1, 0.6]], dtype=np.float32)
+    with pytest.raises(ValueError, match=r"\[0, 1\]"):
+        reliability([negative], [label], [fov], n_bins=10)
