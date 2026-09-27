@@ -337,3 +337,24 @@ def test_main_reports_failures(
 
 def test_main_needs_the_database(synthetic_data_root: Path, tmp_path: Path) -> None:
     assert evaluate.main(["--db", str(tmp_path / "none.db")]) == 1
+
+
+def test_thin_edge_sees_only_training_and_validation_labels(
+    finished: Finished, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Held-out labels must never set the edge (rule 3). The synthetic images
+    # give every fold the same edge whichever labels are used, so check the
+    # labels passed in rather than the value that comes out.
+    seen: list[set[int]] = []
+
+    def recording_thin_edge(labels: list[np.ndarray], fovs: list[np.ndarray], q: float) -> float:
+        seen.append({id(label) for label in labels})
+        return thin_edge(labels, fovs, q)
+
+    monkeypatch.setattr(evaluate, "thin_edge", recording_thin_edge)
+    finished.evaluate()
+    by_id = {id(s.label): s.image_id for s in finished.samples}
+    assert len(seen) == len(finished.folds)
+    for fold, ids in zip(finished.folds, seen, strict=True):
+        assert {by_id[i] for i in ids} == {*fold.train, *fold.val}
+        assert len(ids) == len(fold.train) + len(fold.val)
