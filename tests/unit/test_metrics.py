@@ -80,10 +80,12 @@ def test_dice_of_counts() -> None:
 @pytest.mark.parametrize(
     ("pred", "label", "fov", "match"),
     [
-        (PRED, LABEL, np.zeros_like(FOV), "empty"),
+        (PRED, LABEL, np.zeros_like(FOV), "^FOV mask is empty$"),
         (PRED[:, :2], LABEL, FOV, "prediction shape"),
         (PRED.astype(np.uint8), LABEL, FOV, "prediction must be bool"),
         (PRED, LABEL.astype(np.float32), FOV, "label must be bool"),
+        (PRED, LABEL, FOV.astype(np.uint8), "^fov must be bool"),
+        (PRED, LABEL, FOV[:, :2], "^fov shape"),
         (PRED[None], LABEL[None], FOV[None], r"\(H, W\)"),
     ],
 )
@@ -96,6 +98,7 @@ def test_rejects_bad_inputs(
 
 def test_threshold_grid() -> None:
     np.testing.assert_allclose(threshold_grid(4), [0.25, 0.5, 0.75])
+    np.testing.assert_allclose(threshold_grid(2), [0.5])
     assert len(threshold_grid(100)) == 99
     with pytest.raises(ValueError, match="at least 2"):
         threshold_grid(1)
@@ -155,7 +158,7 @@ def test_best_threshold_rejects_mismatched_inputs() -> None:
         best_threshold([], [], [], grid)
     with pytest.raises(ValueError, match="matching"):
         best_threshold([PRED.astype(np.float32)], [LABEL, LABEL], [FOV], grid)
-    with pytest.raises(ValueError, match="grid is empty"):
+    with pytest.raises(ValueError, match="^threshold grid is empty$"):
         best_threshold([PRED.astype(np.float32)], [LABEL], [FOV], grid[:0])
 
 
@@ -353,7 +356,7 @@ def test_thin_edge_rejects_bad_inputs() -> None:
         thin_edge([], [], 0.5)
     with pytest.raises(ValueError, match="matching"):
         thin_edge([vessels()], [FULL, FULL], 0.5)
-    with pytest.raises(ValueError, match="no vessel skeleton"):
+    with pytest.raises(ValueError, match="^labels have no vessel skeleton inside the FOV$"):
         thin_edge([np.zeros_like(FULL)], [FULL], 0.5)
 
 
@@ -394,3 +397,37 @@ def test_average_precision_never_rounds_above_one() -> None:
     prob[0, 1:7] = 1
     everywhere = np.ones((8, 9), dtype=bool)
     assert average_precision(prob, everywhere, everywhere) == 1.0
+
+
+def test_reliability_accepts_two_bins() -> None:
+    prob = np.array([[0.2, 0.6]], dtype=np.float32)
+    table = reliability([prob], [b([[0, 1]])], [b([[1, 1]])], n_bins=2)
+    assert table.counts == (1, 1)
+    assert table.vessel_fraction == (0.0, 1.0)
+
+
+def test_skeleton_radius_is_euclidean() -> None:
+    # The nearest background of pixel (1, 1) is the diagonal neighbor (0, 0),
+    # at sqrt(2). City-block distance would give 2 and chessboard 1.
+    label = np.ones((7, 7), dtype=bool)
+    label[0, 0] = False
+    _, radius = skeleton_radius(label, np.ones_like(label))
+    assert radius[1, 1] == pytest.approx(np.sqrt(2), abs=1e-6)
+
+
+# The skeleton radii of vessels() are twelve 1s, two 2s, and seven 3s, so a
+# linear quantile at 0.58 would fall between 1 and 2.
+@pytest.mark.parametrize("quantile", [0.1, 0.3, 0.5, 0.58, 0.7, 0.9])
+def test_thin_edge_never_interpolates(quantile: float) -> None:
+    skeleton, radius = skeleton_radius(vessels(), FULL)
+    assert thin_edge([vessels()], [FULL], quantile) in set(radius[skeleton].tolist())
+
+
+def test_dice_per_threshold_never_divides_by_zero() -> None:
+    # A threshold above every probability of an image with no vessels leaves
+    # 2TP + FP + FN at zero, which must be handled before dividing.
+    prob = np.array([[0.2, 0.3]], dtype=np.float32)
+    label, fov = b([[0, 0]]), b([[1, 1]])
+    with np.errstate(all="raise"):
+        dice = dice_per_threshold(prob, label, fov, np.array([0.1, 0.25, 0.5]))
+    np.testing.assert_array_equal(dice, [0.0, 0.0, 1.0])

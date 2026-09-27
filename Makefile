@@ -44,7 +44,7 @@ test:  ## pytest with coverage
 smoke:  ## End-to-end run on synthetic data
 	uv run pytest -m smoke --no-cov -q
 
-mutate:  ## Mutation testing of the fold code (settings in pyproject.toml)
+mutate:  ## Mutation testing of the fold code and metrics (settings in pyproject.toml)
 	rm -rf mutants
 	uv run mutmut run
 	uv run mutmut results
