@@ -70,6 +70,11 @@ runs), and 17 (run manifest) give the details.
   A fold is marked complete in `fold_status` only after its checkpoint,
   threshold, metrics, and history are all written. A restart skips complete
   folds and retrains a `running` one from scratch.
+- `runs.seed` holds the top-level (training) seed. The fold seed is only in
+  `runs.config`, so anything pairing runs by their folds joins on
+  `fold_assignments` (D-019). `final.yaml` will have no folds, and the
+  shared-fold-seed test in `test_config.py` already leaves it and
+  `external.yaml` out.
 - A `runs` row and `results/<run_id>/manifest.json` for every run, through
   `provenance.build_manifest` and `Config.as_json()` with
   `provenance.config_hash`.
