@@ -7,6 +7,7 @@ from hypothesis.extra.numpy import arrays
 from retinal_vessels.metrics import (
     ConfusionCounts,
     best_threshold,
+    binarize,
     binary_metrics,
     confusion_counts,
     dice,
@@ -153,3 +154,16 @@ def test_best_threshold_rejects_mismatched_inputs() -> None:
 
 def test_selection_rule_names_the_grid() -> None:
     assert selection_rule(100) == "max mean per-image validation Dice over the grid i/100"
+
+
+def test_threshold_is_applied_in_the_same_precision_everywhere() -> None:
+    # float32(t) differs from t for many grid values, so a probability that
+    # lands exactly on float32(t) sits on one side of t in float64 and on the
+    # other in float32. The sweep and binarize must agree on which side.
+    grid = threshold_grid(100)
+    label = b([[1, 0]])
+    fov = b([[1, 1]])
+    for t in grid:
+        prob = np.array([[np.float32(t), 0.0]], dtype=np.float32)
+        swept = dice_per_threshold(prob, label, fov, np.array([t]))[0]
+        assert binary_metrics(binarize(prob, float(t)), label, fov).dice == swept

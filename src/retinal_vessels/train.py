@@ -9,7 +9,7 @@ probabilities are saved under ``results/<run_id>/predictions/`` and whose
 metrics go to the database.
 
 The run is resumable. Rerunning the same command continues the unfinished
-run with the same variant, config, commit, and data: complete folds are
+run with the same variant, config, commit, and data. Complete folds are
 skipped and a fold left running is retrained from scratch. Pass ``--new`` to
 start a fresh run instead.
 """
@@ -51,6 +51,7 @@ from retinal_vessels.db import (
 from retinal_vessels.losses import make_loss, pack_target
 from retinal_vessels.metrics import (
     best_threshold,
+    binarize,
     binary_metrics,
     selection_rule,
     threshold_grid,
@@ -191,7 +192,7 @@ def train_fold(
         item = data[image_id]
         prob = predict_image(best, item.image, item.fov, config.inference)
         np.save(out / f"{image_id}.npy", prob)
-        metrics = binary_metrics(prob >= best_threshold_value, item.label, item.fov)
+        metrics = binary_metrics(binarize(prob, best_threshold_value), item.label, item.fov)
         test_metrics.append(ImageMetrics(DATASET, image_id, metrics))
     return FoldRecord(
         run_id=run_id,

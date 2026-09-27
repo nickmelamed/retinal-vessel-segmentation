@@ -100,6 +100,16 @@ def threshold_grid(divisions: int) -> np.ndarray:
     return np.arange(1, divisions) / divisions
 
 
+def binarize(probability: np.ndarray, threshold: float) -> np.ndarray:
+    """Return ``probability >= threshold`` as bool, compared in float64.
+
+    Most grid thresholds are not exact in float32, so comparing in float32
+    could put a probability on the other side of the threshold than the
+    sweep in :func:`dice_per_threshold` does, which also compares in float64.
+    """
+    return np.asarray(probability, dtype=np.float64) >= np.float64(threshold)
+
+
 def dice_per_threshold(
     probability: np.ndarray, label: np.ndarray, fov: np.ndarray, grid: np.ndarray
 ) -> np.ndarray:
@@ -111,7 +121,8 @@ def dice_per_threshold(
     :func:`confusion_counts` gives for each threshold separately.
     """
     _check_inputs(probability, label, fov, np.float32)
-    p, t = probability[fov], label[fov]
+    p, t = probability[fov].astype(np.float64), label[fov]
+    grid = np.asarray(grid, dtype=np.float64)
     vessel, background = np.sort(p[t]), np.sort(p[~t])
     tp = len(vessel) - np.searchsorted(vessel, grid, side="left")
     fp = len(background) - np.searchsorted(background, grid, side="left")
