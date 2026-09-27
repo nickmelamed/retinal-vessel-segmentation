@@ -165,6 +165,10 @@ def _load_probability(path: Path, shape: tuple[int, ...]) -> np.ndarray:
     prob: np.ndarray = np.load(path)
     if prob.dtype != np.float32 or prob.shape != shape:
         raise EvaluationError(f"{path} holds {prob.dtype} {prob.shape}, expected float32 {shape}")
+    # SQLite stores a NaN as NULL, which passes the schema's CHECK, so a NaN
+    # would otherwise leave the image's metrics silently empty.
+    if not np.isfinite(prob).all() or prob.min() < 0 or prob.max() > 1:
+        raise EvaluationError(f"{path} holds values outside [0, 1] or non-finite values")
     return prob
 
 
