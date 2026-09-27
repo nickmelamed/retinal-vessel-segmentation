@@ -1,0 +1,25 @@
+# Tiny settings for the CI smoke run on synthetic data. Folds match the
+# baseline so the smoke run exercises the real split.
+variant: smoke
+seed: 0
+
+folds:
+  n_folds: 5
+  n_val: 2
+
+preprocess:
+  green_channel: true
+  clahe: true
+  clahe_clip_limit: 2.0
+  clahe_tile_grid: [8, 8]
+  scale_unit: true
+  standardize_in_fov: true
+
+patches:
+  size: 32
+  per_epoch: 64
+  batch_size: 8
+  flip: true
+  rot90: true
+  brightness_delta: 0.1
+  contrast_range: [0.9, 1.1]
