@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup lock lock-check check-data lint test smoke ci agent-check
+.PHONY: help setup lock lock-check check-data lint test smoke mutate ci agent-check
 
 EXPORT := uv export --no-dev --no-hashes --no-emit-project --quiet
 
@@ -33,6 +33,11 @@ test:  ## pytest with coverage
 
 smoke:  ## End-to-end run on synthetic data
 	uv run pytest -m smoke --no-cov -q
+
+mutate:  ## Mutation testing of the fold code (settings in pyproject.toml)
+	rm -rf mutants
+	uv run mutmut run
+	uv run mutmut results
 
 ci: lint test smoke lock-check  ## Exactly what CI runs
 

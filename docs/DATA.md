@@ -41,5 +41,14 @@ changed, or extra file is listed by name and the command fails. Hidden files
 such as `.DS_Store` are ignored. Every run records a hash of the verified
 checksums, so results can be traced to the exact data they used.
 
+Once the checksums pass, the command loads every image through the DRIVE
+loader, which checks the exact file layout, image sizes, and mask values.
+It then writes one row per image to the `images` table in
+`results/experiments.db` (change it with `--db`). Each row holds the FOV
+size, the within-FOV vessel fraction, and the official abnormality note
+where there is one. The command logs the vessel fraction pooled over the 20
+training images. Running it again adds nothing, and a stored row that no
+longer matches the data is an error.
+
 STARE and CHASE_DB1 are added in phase 7, after their terms of use are
 checked.

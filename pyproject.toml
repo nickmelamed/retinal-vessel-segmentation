@@ -39,9 +39,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/retinal_vessels"]
 
-# Installed copies need the schema, which lives outside the package in sql/.
+# Installed copies need the schema and queries, which live outside the package in sql/.
 [tool.hatch.build.targets.wheel.force-include]
 "sql/schema.sql" = "retinal_vessels/schema.sql"
+"sql/queries" = "retinal_vessels/queries"
 
 [tool.ruff]
 line-length = 100
@@ -81,3 +82,15 @@ branch = true
 [tool.coverage.report]
 fail_under = 85
 show_missing = true
+
+# Mutation testing of the fold code (make mutate). Only the tests that
+# exercise data.py run, since the full suite would add minutes per mutant.
+[tool.mutmut]
+source_paths = ["src/retinal_vessels/data.py"]
+also_copy = ["src/", "tests/", "sql/", "configs/"]
+pytest_add_cli_args = ["--no-cov", "-p", "no:warnings"]
+pytest_add_cli_args_test_selection = [
+    "tests/unit/test_data.py",
+    "tests/unit/test_db_writes.py",
+    "tests/unit/test_leakage_audit.py",
+]

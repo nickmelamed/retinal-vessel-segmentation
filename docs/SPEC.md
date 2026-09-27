@@ -21,7 +21,16 @@ The non-negotiable rules are in CLAUDE.md.
 - 40 color fundus images from a diabetic retinopathy screening program in the Netherlands; 33 show no sign of diabetic retinopathy, 7 show mild early signs. Canon CR5 non-mydriatic 3CCD camera, 45° field of view, captured at 768×584 pixels and cropped around the FOV to 565×584 (W×H), 8 bits per channel. **Every image has been JPEG compressed** by the dataset providers; compression can blur the finest vessels, so note it under limitations.
 - Official split: 20 training (ids 21–40) and 20 test (ids 1–20). Every image has a circular field-of-view (FOV) mask.
 - **Test-set vessel annotations are withheld** on the official site; predictions can be submitted there for scoring (Dice within the FOV mask). Only the 20 training images have labels we can use.
-- **Images with abnormalities, as listed on the official site:** training images **25** (pigment epithelium changes, probably butterfly maculopathy with a pigmented scar in the fovea, or choroidiopathy; no diabetic retinopathy or other vascular abnormalities), **26** (background diabetic retinopathy, pigmentary epithelial atrophy, atrophy around the optic disc), and **32** (background diabetic retinopathy); test images 03, 08, 14, and 17. Store these as image metadata (section 8); don't paraphrase them into diagnoses beyond what the site states.
+- **Images with abnormalities, as listed on the official site** (retrieved 2026-09-26, D-015): training images **25**, **26**, and **32**, and test images 03, 08, 14, and 17. Store these notes word for word as image metadata (section 8), and don't turn them into diagnoses beyond what the site states.
+  ```
+  25_training: pigment epithelium changes, probably butterfly maculopathy with pigmented scar in fovea, or choroidiopathy, no diabetic retinopathy or other vascular abnormalities.
+  26_training: background diabetic retinopathy, pigmentary epithelial atrophy, atrophy around optic disk
+  32_training: background diabetic retinopathy
+  03_test: background diabetic retinopathy
+  08_test: pigment epithelium changes, pigmented scar in fovea, or choroidiopathy, no diabetic retinopathy or other vascular abnormalities
+  14_test: background diabetic retinopathy
+  17_test: background diabetic retinopathy
+  ```
 - Annotators were instructed to mark pixels they were at least 70% certain were vessel. Labels are therefore inherently uncertain at thin-vessel boundaries.
 - **Patients:** images were randomly selected from a screening population of 400 diabetic subjects aged 25–90. No patient identifiers are published. Do **not** claim each image is a different patient. Use: "DRIVE does not publish patient identifiers; we treat each image as an independent subject, which we cannot verify."
 - **License:** no explicit license is published for DRIVE. Do not redistribute images. Showing a few example images in figures, with attribution, is acceptable.
@@ -46,7 +55,7 @@ The facts below are as commonly reported in the literature. Before downloading e
 
 ## 5. Evaluation design (ask before changing)
 
-- **5-fold cross-validation over the 20 labeled images, split by whole image** (never by patch). Each fold: 4 held-out test images; of the remaining 16, 2 are validation (early stopping and threshold choice) and 14 are training. Folds are deterministic from the seed and stored in the database.
+- **5-fold cross-validation over the 20 labeled images, split by whole image** (never by patch). Each fold: 4 held-out test images; of the remaining 16, 2 are validation (early stopping and threshold choice) and 14 are training. The abnormal training images 25, 26, and 32 go to three different test folds (D-016). Folds are deterministic from the seed and stored in the database.
 - Every labeled image receives exactly one **out-of-fold** prediction. All headline metrics are computed on these 20 out-of-fold predictions.
 - **Threshold:** chosen per fold to maximize Dice on that fold's validation images, then applied unchanged to its held-out images. Record every threshold and the rule used.
 - **All metrics are computed inside the FOV mask only.**

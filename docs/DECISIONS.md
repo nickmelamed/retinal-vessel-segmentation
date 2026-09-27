@@ -170,3 +170,76 @@ The checksum file now always defaults to the committed
 unless `--init` is passed, and an existing file is still never changed. The
 committed file covers section 17's first-run case. Found by the Claude review
 on PR #1.
+
+## D-015 Abnormality notes are quoted from the site (2026-09-26)
+
+SPEC section 4 used to paraphrase the official notes for the seven images
+with abnormalities. For example, it gave image 26's note as "atrophy around
+the optic disc", where the site says "atrophy around optic disk". The
+`images.abnormality_note` column must hold the site's own words, so the
+owner chose to replace the paraphrase with the text of
+https://drive.grand-challenge.org/ as retrieved on 2026-09-26. The loader
+stores the same strings. If the site's wording changes, this entry and the
+loader change together.
+
+## D-016 Abnormal images go to different test folds (2026-09-26)
+
+This refines SPEC section 5, with the owner's approval. `make_folds` puts
+DRIVE's abnormal training images, 25, 26, and 32, in three different test
+folds, and shuffles the other 17 into the remaining test slots with the same
+seed. With a plain shuffle, two or three of them could share a fold, and that
+fold's threshold and scores would then be driven by pathology. The split is
+still by whole image, every image is a test image exactly once, and each
+fold has 4 test, 2 validation, and 14 training images. Validation
+images are drawn at random from each fold's 16 non-test images.
+
+The folds depend only on the set of image ids and the seed, never on their
+order, so every variant run with the same seed gets the same assignment
+(section 7).
+
+## D-017 Phase 1 data conventions (2026-09-26)
+
+This completes the config part of D-009. `retinal_vessels.config` validates
+each YAML file with pydantic in strict mode. Every key is required, since a
+default would hide a missing setting, and unknown keys are errors. Strict
+types mean `true` is not a number and `1` is not a boolean. The YAML is
+validated through JSON so that lists can fill tuple fields.
+
+DRIVE image ids are the two-digit strings from the file names ("03", "21").
+Training and test ids do not overlap, so `(dataset, image_id)` is unique.
+
+When the green channel is switched off, preprocessing converts the image to
+grayscale, since CLAHE needs a single channel. Pixels outside the FOV are
+set to 0 before CLAHE and again at the end, so the output depends only on
+pixels inside the FOV. The owner chose this after the phase 1 review found
+that CLAHE's tile histograms saw the raw border. It matters for external
+validation (section 5), since STARE and CHASE_DB1 borders differ from
+DRIVE's and must not change what the model sees inside the FOV.
+
+Patch batches carry the FOV patch as a third element, so the phase 2 loss
+can ignore pixels outside the FOV. Every random choice in patch sampling is
+drawn up front from one seeded NumPy generator, which keeps the `tf.data`
+pipeline deterministic even with parallel maps.
+
+The owner asked for the flip probability to be a config setting,
+`patches.flip_probability`, in place of an on or off `flip` flag. One
+number cannot contradict itself the way a flag and a probability could, and
+0 switches flips off. Both shipped configs use 0.5. The flip draws are
+consumed even at 0, so changing the probability never shifts the other
+augmentation draws for a given seed.
+
+The within-FOV vessel fraction counts labeled pixels inside the FOV only.
+The real DRIVE labels mark a few pixels outside it.
+
+## D-018 `make check-data` writes the `images` table (2026-09-26)
+
+The owner chose to have `check_data.py` write the `images` rows, instead of
+leaving them for training in phase 2. SPEC section 6 gives the script the
+dataset stats, and section 4 says the within-FOV vessel fraction is quoted
+as computed, so the computed values belong in the database that documents
+draw numbers from (rule 2). Once the checksums pass, the script loads every
+image through the DRIVE loader and writes its row to `results/experiments.db`,
+or the path given with `--db`. Repeating the command adds nothing. A stored
+row that no longer matches the data is an error, like a checksum mismatch
+(D-004). The pooled fraction is only logged, and it goes into documents
+through the tables generated from the database.

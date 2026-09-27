@@ -17,3 +17,10 @@ All notable changes to this project are documented here. The format follows
 - Built wheels ship a copy of the schema.
 - Makefile entry points, pre-commit hooks, CI, a Claude pull request review workflow, and a pull request template.
 - Design decisions log, data download instructions, and repository settings notes.
+- Typed, strict experiment configs (`configs/baseline.yaml`, `configs/smoke.yaml`).
+- DRIVE loader with layout checks and the official abnormality notes, quoted verbatim.
+- Image-level 5-fold cross-validation folds, with the abnormal training images in different test folds.
+- Leakage audit query 04, and a runner for numbered queries.
+- Preprocessing (green channel, CLAHE, scaling, FOV standardization) and seeded `tf.data` patch sampling.
+- `make check-data` writes the `images` table and logs the within-FOV vessel fraction.
+- `make mutate` for mutation testing of the fold code.
