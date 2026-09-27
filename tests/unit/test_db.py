@@ -88,7 +88,9 @@ def test_empty_database_has_no_version(tmp_path: Path) -> None:
 
 
 def test_rejects_a_database_at_another_version(conn: sqlite3.Connection) -> None:
-    conn.execute("INSERT INTO schema_version (version, applied_at) VALUES (99, 'x')")
+    conn.execute(
+        "INSERT INTO schema_version (version, applied_at) VALUES (99, '2026-09-26T00:00:00Z')"
+    )
     with pytest.raises(RuntimeError, match="version 99"):
         create_schema(conn)
 
@@ -153,13 +155,13 @@ def test_fold_rows_are_checked(conn: sqlite3.Connection) -> None:
 
 def test_a_fold_cannot_be_complete_without_its_checkpoint(conn: sqlite3.Connection) -> None:
     insert(conn, "runs", RUN)
-    row = {"run_id": "r1", "fold": 1, "started_at": "t0"}
+    row = {"run_id": "r1", "fold": 1, "started_at": "2026-09-26T00:00:00Z"}
     insert(conn, "fold_status", {**row, "status": "running"})
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute("UPDATE fold_status SET status = 'complete' WHERE run_id = 'r1'")
     conn.execute(
         "UPDATE fold_status SET status = 'complete', checkpoint_sha256 = 'x',"
-        " completed_at = 't1' WHERE run_id = 'r1'"
+        " completed_at = '2026-09-26T01:00:00Z' WHERE run_id = 'r1'"
     )
 
 
@@ -195,10 +197,25 @@ def test_folds_count_from_one_and_zero_is_the_frozen_model(conn: sqlite3.Connect
     insert(conn, "images", IMAGE)
     for table, row in [
         ("fold_assignments", {"dataset": "drive", "image_id": "21", "role": "test"}),
-        ("fold_status", {"status": "running", "started_at": "t0"}),
+        ("fold_status", {"status": "running", "started_at": "2026-09-26T00:00:00Z"}),
         ("thresholds", {"threshold": 0.5, "selection_rule": "max val dice"}),
         ("per_image_metrics", {"dataset": "drive", "image_id": "21", "prediction_mode": "single"}),
     ]:
-        with pytest.raises(sqlite3.IntegrityError):
+        with pytest.raises(sqlite3.IntegrityError, match="fold >= 1"):
             insert(conn, table, {"run_id": "r1", "fold": 0, **row})
     insert(conn, "training_history", {"run_id": "r1", "fold": 0, "epoch": 0, "train_loss": 0.3})
+
+
+@pytest.mark.parametrize(
+    "started_at",
+    [
+        "2026-09-26T12:00:00+00:00",
+        "2026-09-26T12:00:00.123Z",
+        "2026-09-26 12:00:00",
+        "2026-13-01T00:00:00Z",
+        "t0",
+    ],
+)
+def test_timestamps_must_be_whole_second_utc(conn: sqlite3.Connection, started_at: str) -> None:
+    with pytest.raises(sqlite3.IntegrityError, match="started_at"):
+        insert(conn, "runs", {**RUN, "started_at": started_at})

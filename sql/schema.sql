@@ -1,6 +1,10 @@
 -- System of record for runs, folds, thresholds, and metrics (SPEC section 8).
 -- Created by retinal_vessels.db.create_schema. Every statement is idempotent.
--- Booleans are INTEGER 0 or 1. Timestamps are ISO 8601 text in UTC.
+-- Booleans are INTEGER 0 or 1.
+--
+-- Timestamps are UTC text like 2026-09-26T15:30:00Z. Each one must survive a
+-- strftime round trip unchanged, which rejects offsets, fractional seconds,
+-- and impossible dates, so the frozen model audit can compare them as text.
 --
 -- Cross-validation folds are numbered from 1. In training_history, fold 0 is
 -- the frozen final model trained on all labeled images.
@@ -14,7 +18,7 @@
 
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL PRIMARY KEY,
-    applied_at TEXT NOT NULL
+    applied_at TEXT NOT NULL CHECK (applied_at IS strftime('%Y-%m-%dT%H:%M:%SZ', applied_at))
 ) STRICT;
 
 INSERT OR IGNORE INTO schema_version (version, applied_at)
@@ -44,7 +48,7 @@ CREATE TABLE IF NOT EXISTS frozen_models (
     threshold REAL NOT NULL CHECK (threshold BETWEEN 0 AND 1),
     n_epochs INTEGER NOT NULL CHECK (n_epochs > 0),
     git_commit TEXT NOT NULL,
-    frozen_at TEXT NOT NULL
+    frozen_at TEXT NOT NULL CHECK (frozen_at IS strftime('%Y-%m-%dT%H:%M:%SZ', frozen_at))
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -70,8 +74,8 @@ CREATE TABLE IF NOT EXISTS runs (
     -- against frozen_models, so a run cannot quietly apply another threshold.
     frozen_model_id TEXT REFERENCES frozen_models (model_id),
     applied_threshold REAL CHECK (applied_threshold BETWEEN 0 AND 1),
-    started_at TEXT NOT NULL,
-    finished_at TEXT,
+    started_at TEXT NOT NULL CHECK (started_at IS strftime('%Y-%m-%dT%H:%M:%SZ', started_at)),
+    finished_at TEXT CHECK (finished_at IS strftime('%Y-%m-%dT%H:%M:%SZ', finished_at)),
     is_reported INTEGER NOT NULL DEFAULT 0 CHECK (is_reported IN (0, 1)),
     -- Only runs from a clean, tagged commit can back a reported number.
     CHECK (is_reported = 0 OR (git_dirty = 0 AND git_tag IS NOT NULL))
@@ -92,8 +96,8 @@ CREATE TABLE IF NOT EXISTS fold_status (
     fold INTEGER NOT NULL CHECK (fold >= 1),
     status TEXT NOT NULL CHECK (status IN ('running', 'complete')),
     checkpoint_sha256 TEXT,
-    started_at TEXT NOT NULL,
-    completed_at TEXT,
+    started_at TEXT NOT NULL CHECK (started_at IS strftime('%Y-%m-%dT%H:%M:%SZ', started_at)),
+    completed_at TEXT CHECK (completed_at IS strftime('%Y-%m-%dT%H:%M:%SZ', completed_at)),
     attempts INTEGER NOT NULL DEFAULT 1 CHECK (attempts >= 1),
     PRIMARY KEY (run_id, fold),
     CHECK (
