@@ -29,6 +29,12 @@ def folds(conn: sqlite3.Connection, synthetic_data_root: Path) -> list[Fold]:
     return result
 
 
+def leaks(conn: sqlite3.Connection) -> list[tuple[object, ...]]:
+    # SQLite leaves the order of group_concat unspecified, so compare the
+    # detail column as a set.
+    return [(*row[:4], set(str(row[4]).split(","))) for row in run_query(conn, AUDIT)]
+
+
 def test_query_has_a_header_stating_its_question() -> None:
     text = (QUERIES_DIR / f"{AUDIT}.sql").read_text()
     assert text.startswith("-- Question:")
@@ -50,8 +56,8 @@ def test_several_valid_runs_return_zero_rows(conn: sqlite3.Connection, folds: li
 def test_two_roles_in_one_fold_is_a_leak(conn: sqlite3.Connection, folds: list[Fold]) -> None:
     leaked = folds[0].train[0]
     insert(conn, "fold_assignments", {**_row(1, leaked), "role": "val"})
-    assert run_query(conn, AUDIT) == [
-        ("r1", "drive", leaked, "more than one role in fold 1", "train,val")
+    assert leaks(conn) == [
+        ("r1", "drive", leaked, "more than one role in fold 1", {"train", "val"})
     ]
 
 
@@ -64,7 +70,7 @@ def test_test_in_two_folds_is_a_leak(conn: sqlite3.Connection, folds: list[Fold]
         "WHERE run_id = 'r1' AND fold = 2 AND image_id = ?",
         (leaked,),
     )
-    assert run_query(conn, AUDIT) == [("r1", "drive", leaked, "test in more than one fold", "1,2")]
+    assert leaks(conn) == [("r1", "drive", leaked, "test in more than one fold", {"1", "2"})]
 
 
 def test_every_leak_is_reported(conn: sqlite3.Connection, folds: list[Fold]) -> None:
