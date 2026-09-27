@@ -24,9 +24,9 @@ The owner approved two additions on 2026-09-26. Build them in the phases named h
 - Phase 3: add Hypothesis property tests for `metrics.py`. Dice stays in [0, 1], pixels outside the FOV never change a score, and a perfect prediction scores 1. Run `mutmut` on `metrics.py`.
 
 - [x] **0. Setup:** package skeleton, `pyproject.toml`, `uv.lock`, generated `requirements.txt`, `.python-version`, `.gitignore`, `.gitattributes`, pre-commit hooks, `Makefile`, CI workflow, pull request template, synthetic fixtures, `DECISIONS.md`, `CHANGELOG.md`, `CITATION.cff`, data download instructions, `make check-data` with checksums, database schema, provenance module. CI green on an empty-but-wired pipeline.
-- [ ] **1. Data:** DRIVE loader adapter with pathology metadata, validation, folds, preprocessing, patch sampling, and their tests.
+- [ ] **1. Data:** DRIVE loader adapter with pathology metadata, validation, folds, preprocessing, patch sampling, the leakage audit query 04 (moved from phase 3, D-012), and their tests.
 - [ ] **2. Model and training:** U-Net, losses, resumable CV training with database logging and run manifests, `colab_runner.ipynb`, the smoke integration test, and the resumability tests.
-- [ ] **3. Evaluation:** sliding-window inference, all metrics, calibration, thin/thick sensitivity, and SQL queries 01–05.
+- [ ] **3. Evaluation:** sliding-window inference, all metrics, calibration, thin/thick sensitivity, and SQL queries 01–03 and 05 (04 lands in phase 1).
 - [ ] **4. v0.1.0 ship point.** A complete, honest first version that can be shared while later phases continue:
   - Reported baseline runs from a clean tree; `make snapshot`; `make tables`.
   - Hero figure, best/worst figures, training curves, reliability diagram, thin/thick chart.
