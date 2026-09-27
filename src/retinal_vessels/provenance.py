@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 CHUNK_BYTES = 1 << 20
 MANIFEST_NAME = "manifest.json"
 COLAB_ENV_VAR = "COLAB_RELEASE_TAG"
+# Matches strftime in sql/schema.sql, so timestamps compare correctly as text.
+TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
 def sha256_file(path: Path) -> str:
@@ -203,6 +205,11 @@ def config_hash(config: Mapping[str, Any]) -> str:
     return hashlib.sha256(json.dumps(config, sort_keys=True).encode("utf-8")).hexdigest()
 
 
+def utc_timestamp(now: datetime | None = None) -> str:
+    """Return ``now``, or the current time, as UTC text like ``2026-09-26T15:30:00Z``."""
+    return (now or datetime.now(UTC)).astimezone(UTC).strftime(TIMESTAMP_FORMAT)
+
+
 def new_run_id(now: datetime | None = None) -> str:
     """Return a sortable, unique run id such as ``20260926T153000Z-1a2b3c``."""
     stamp = (now or datetime.now(UTC)).strftime("%Y%m%dT%H%M%SZ")
@@ -258,7 +265,7 @@ def build_manifest(
         git_dirty=state.dirty,
         data_hash=data_hash(checksums),
         deterministic_ops=deterministic_ops,
-        started_at=(started_at or datetime.now(UTC)).isoformat(),
+        started_at=utc_timestamp(started_at),
         environment=dict(env if env is not None else environment()),
     )
 

@@ -20,6 +20,7 @@ from retinal_vessels.provenance import (
     new_run_id,
     read_checksums,
     sha256_file,
+    utc_timestamp,
     verify_checksums,
     write_manifest,
 )
@@ -214,7 +215,7 @@ def test_manifest_captures_commit_dirty_flag_and_data_checksum(
     assert saved["git_commit"] == head
     assert saved["git_dirty"] is False
     assert saved["data_hash"] == data_hash(checksums)
-    assert saved["started_at"] == "2026-09-26T12:00:00+00:00"
+    assert saved["started_at"] == "2026-09-26T12:00:00Z"
     assert saved["finished_at"] is None
 
 
@@ -248,3 +249,13 @@ def test_environment_describes_this_machine() -> None:
     assert env["device"] in {"cpu", "gpu"}
     assert (env["device"] == "cpu") == (env["gpu_type"] == "cpu")
     assert env["compute_platform"] in {"colab", "local"}
+
+
+def test_timestamps_match_the_schema_format() -> None:
+    from datetime import timedelta, timezone
+
+    pacific = timezone(timedelta(hours=-7))
+    assert utc_timestamp(datetime(2026, 9, 26, 8, 30, 15, 999, tzinfo=pacific)) == (
+        "2026-09-26T15:30:15Z"
+    )
+    assert utc_timestamp().endswith("Z")
