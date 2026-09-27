@@ -1,4 +1,4 @@
-"""Open the experiments database and create its schema from ``sql/schema.sql``."""
+"""Open the experiments database, create its schema, write rows, and run queries."""
 
 import logging
 import sqlite3
@@ -12,18 +12,21 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 SCHEMA_NAME = "schema.sql"
+QUERIES_NAME = "queries"
 
 
-def _schema_path() -> Path:
-    # A built wheel carries a copy of sql/schema.sql inside the package (see
-    # pyproject.toml). An editable install has no copy and reads the repo file.
-    packaged = Path(__file__).resolve().parent / SCHEMA_NAME
-    if packaged.is_file():
+def _sql_path(name: str) -> Path:
+    # A built wheel carries copies of sql/schema.sql and sql/queries inside the
+    # package (see pyproject.toml). An editable install has no copies and reads
+    # the repo's files.
+    packaged = Path(__file__).resolve().parent / name
+    if packaged.exists():
         return packaged
-    return Path(__file__).resolve().parents[2] / "sql" / SCHEMA_NAME
+    return Path(__file__).resolve().parents[2] / "sql" / name
 
 
-SCHEMA_PATH = _schema_path()
+SCHEMA_PATH = _sql_path(SCHEMA_NAME)
+QUERIES_DIR = _sql_path(QUERIES_NAME)
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -66,6 +69,20 @@ def create_schema(conn: sqlite3.Connection, schema_path: Path = SCHEMA_PATH) -> 
     if found != SCHEMA_VERSION:
         raise RuntimeError(f"{schema_path} sets version {found}, code expects {SCHEMA_VERSION}")
     logger.debug("Schema at version %d", SCHEMA_VERSION)
+
+
+def run_query(
+    conn: sqlite3.Connection, name: str, queries_dir: Path = QUERIES_DIR
+) -> list[tuple[object, ...]]:
+    """Run ``sql/queries/<name>.sql`` and return its rows.
+
+    ``name`` is the file stem, like ``04_leakage_audit``. A missing file
+    raises ``FileNotFoundError``.
+    """
+    path = queries_dir / f"{name}.sql"
+    if not path.is_file():
+        raise FileNotFoundError(f"query not found at {path}")
+    return [tuple(row) for row in conn.execute(path.read_text(encoding="utf-8")).fetchall()]
 
 
 @dataclass(frozen=True)

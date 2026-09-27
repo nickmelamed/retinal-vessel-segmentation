@@ -39,9 +39,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/retinal_vessels"]
 
-# Installed copies need the schema, which lives outside the package in sql/.
+# Installed copies need the schema and queries, which live outside the package in sql/.
 [tool.hatch.build.targets.wheel.force-include]
 "sql/schema.sql" = "retinal_vessels/schema.sql"
+"sql/queries" = "retinal_vessels/queries"
 
 [tool.ruff]
 line-length = 100
