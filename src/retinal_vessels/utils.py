@@ -1,7 +1,6 @@
 """Logging setup and seeding shared by every entry point."""
 
 import logging
-import os
 import random
 
 import numpy as np
@@ -35,7 +34,6 @@ def set_seed(seed: int, deterministic: bool = False) -> bool:
     """
     if seed < 0:
         raise ValueError(f"seed must be non-negative, got {seed}")
-    os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
 
