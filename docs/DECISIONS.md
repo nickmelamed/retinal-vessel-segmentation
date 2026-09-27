@@ -91,7 +91,9 @@ applied any other threshold is caught. Section 8 requires that check, and
 `thresholds` cannot hold it because external runs have no fold.
 The two columns are set together or not at all, so query 09 identifies an
 external evaluation as any run with `frozen_model_id` set, and a NULL
-threshold can never slip past it.`images.split` takes `external` for datasets that have no official split.
+threshold can never slip past it.
+
+`images.split` takes `external` for datasets that have no official split.
 
 The anomaly module tables are left for schema version 2 in phase 9, when
 section 10's design fixes their columns.
