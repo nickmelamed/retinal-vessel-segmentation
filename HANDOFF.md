@@ -1,142 +1,137 @@
-# Handoff for planning phase 2
+# Handoff for planning phase 3
 
-This note is for a new Claude Code session that will plan phase 2 (model and
-training) with the owner. Read CLAUDE.md first, then PROGRESS.md, then the
-SPEC sections named below. Plan only. Wait for the owner's approval before
-building, and do the work on a `phase/2-model` branch cut from `main` after
-phase 1 merges.
+This note is for a new Claude Code session that will plan phase 3
+(evaluation) with the owner. Read CLAUDE.md first, then PROGRESS.md, then
+SPEC sections 5, 8, and 14, and D-020 in docs/DECISIONS.md. Plan only. Wait
+for the owner's approval before building, and do the work on a
+`phase/3-evaluation` branch cut from `main` after phase 2 merges.
 
-## Where things stand (2026-09-26)
+## Where things stand (2026-09-27)
 
-Phase 1 is merged into `main` (PR #3, merge commit `0649317`) and ticked in
-PROGRESS.md. A follow-up branch, `fix/folds-seed`, gives the folds their own
-seed (D-019). Check `gh pr list`, and cut `phase/2-model` from `main` once
-it has merged. CI passes on `main`.
+Phase 2 is finished on `phase/2-model` and ticked in PROGRESS.md. Check
+`gh pr list` to see whether its pull request has merged. `make ci` passes on
+the branch.
 
-What phase 1 added:
+What phase 2 added:
 
-- `config.py` loads `configs/baseline.yaml` and `configs/smoke.yaml` into
-  strict pydantic models. Every key is required and unknown keys are errors
-  (D-017). The sections so far are `variant`, `seed`, `folds`, `preprocess`,
-  and `patches`. The top-level `seed` drives patch sampling and, from phase
-  2, training. The folds use `folds.seed`, which a test requires to match
-  across every config (D-019). Phase 2 adds model and training sections to both files and
-  to `Config`.
-- `data.py` (protected) holds `Sample`, which validates itself, and
-  `make_folds`. Folds are 14/2/4, numbered 1 to 5, depend only on the id set
-  and seed, and put images 25, 26, and 32 in different test folds (D-016).
-  `fold_rows` flattens folds for the database.
-- `datasets/drive.py` checks the exact layout and file formats, loads
-  training images with labels and test images without, and carries the
-  seven official abnormality notes verbatim (D-015, SPEC section 4 now
-  quotes them).
-- `db.py` gained `image_record`, `write_images` (safe to repeat, raises on
-  changed data), `write_fold_assignments`, and `run_query`. Built wheels
-  ship `sql/queries/`.
-- `sql/queries/04_leakage_audit.sql` (protected) returns zero rows on valid
-  folds and a named row for each kind of leak.
-- `preprocess.py` runs green channel (grayscale when off), CLAHE, a [0, 1]
-  scale, and FOV standardization. The border is zeroed before CLAHE and at
-  the end, so the output depends only on FOV pixels. The owner chose this
-  after the spec review found CLAHE saw the raw border (D-017).
-- `patches.py` builds a batched `tf.data` dataset of `(x, y, w)` patches,
-  with `w` the FOV patch for masking the loss. All randomness is drawn up
-  front from one NumPy generator, so one seed gives one sequence of batches.
-  Pass a new seed for each epoch. The flip chance is `flip_probability`.
-- `make check-data` also writes the 40 DRIVE `images` rows to
-  `results/experiments.db` and logs the pooled within-FOV vessel fraction
-  (D-018). It has been run on the real data. No document quotes the number
-  yet, and none may until it comes from a generated table (rule 2).
-- `make mutate` runs mutmut on `data.py`. It kills 153 of 156 mutants. The
-  3 survivors are equivalent: `strict=None` or no `strict` in the `zip` over
-  spread ids, and `replace=None` in `rng.choice`, all behave like `False`.
+- Config sections `model`, `loss`, `training`, `inference`, and `threshold`
+  in both YAML files. `Config` checks that `patches.size` and
+  `inference.window` divide by `2**model.depth`. The threshold candidates are
+  `i / threshold.divisions` (D-020).
+- `model.py`: `build_unet(ModelConfig)`, sigmoid output, any input size that
+  divides by `2**depth`, transposed-convolution upsampling.
+- `losses.py`: FOV-masked soft Dice and BCE + Dice. The FOV weight travels
+  as the second channel of the target, built by `pack_target`.
+- `predict.py`: `predict_image(model, image, fov, InferenceConfig)`, sliding
+  windows averaged, zero outside the FOV.
+- `metrics.py` (protected): `confusion_counts`, `binary_metrics` (Dice,
+  sensitivity, specificity, precision, accuracy, predicted vessel fraction),
+  `binarize` (compares in float64), `threshold_grid`, `dice_per_threshold`,
+  `best_threshold`, and `selection_rule`. Zero-denominator ratios are None,
+  and Dice is 1 when both label and prediction are empty.
+- `db.py`: `insert_run`, `run_manifest`, `find_resumable_run`,
+  `stored_fold_rows`, `fold_statuses`, `start_fold`, `complete_fold` (one
+  transaction), and `finish_run`.
+- `train.py` CLI (`make train VARIANT=...`). Per fold, it stops early on the
+  best-threshold validation Dice, keeps the best checkpoint at
+  `models/<run_id>/fold_<k>.keras`, saves test-image probabilities to
+  `results/<run_id>/predictions/<image_id>.npy` (float32, 0 outside the FOV),
+  and writes `per_image_metrics` rows with the confusion metrics filled and
+  the AUC, Brier, thin/thick, and uncertainty columns NULL.
+- Resume rules (D-020). Only unfinished runs from a clean tree, matching on
+  variant, config hash, commit, and data hash, are resumed, and only from a
+  clean tree. Stored fold assignments and the environment must match.
+- `scripts/verify_checkpoints.py` (`make verify-checkpoints`) and
+  `notebooks/colab_runner.ipynb`.
+- `set_seed` now also seeds Keras.
 
-## What phase 2 must deliver
+No reported run exists yet. The smoke config was run once on the real DRIVE
+data into scratch directories to check the pipeline, and nothing from it was
+kept. No number from any run may appear in a document until it comes from a
+generated table (rule 2).
 
-The phase 2 line in PROGRESS.md says: U-Net, losses, resumable CV training
-with database logging and run manifests, `colab_runner.ipynb`, the smoke
-integration test, and the resumability tests. SPEC sections 7 (model, loss,
-training), 8 (`runs`, `fold_status`, `thresholds`, `training_history`), 14
-(the resumability tests and the smoke test), 16 (Colab workflow, resumable
-runs), and 17 (run manifest) give the details.
+## What phase 3 must deliver
 
-- `model.py`: a small U-Net (3 to 4 levels, base 16 to 32 filters, batch
-  norm, dropout), every size from config.
-- `losses.py`: BCE + Dice (baseline) and Dice only (the ablation), masked
-  by the FOV weight `w` from `patches.py`.
-- `train.py` (CLI): full 5-fold CV for one config. Adam, early stopping on
-  validation-image Dice computed on whole validation images inside the FOV,
-  the best checkpoint per fold, and training curves in `training_history`.
-  A fold is marked complete in `fold_status` only after its checkpoint,
-  threshold, metrics, and history are all written. A restart skips complete
-  folds and retrains a `running` one from scratch.
-- `runs.seed` holds the top-level (training) seed. The fold seed is only in
-  `runs.config`, so anything pairing runs by their folds joins on
-  `fold_assignments` (D-019). `final.yaml` will have no folds, and the
-  shared-fold-seed test in `test_config.py` already leaves it and
-  `external.yaml` out.
-- A `runs` row and `results/<run_id>/manifest.json` for every run, through
-  `provenance.build_manifest` and `Config.as_json()` with
-  `provenance.config_hash`.
-- Required tests: interrupting a synthetic CV run after fold 2 and restarting
-  it trains folds 3 to 5 only, with the same fold assignments and database
-  state as an uninterrupted run. A fold left `running` is retrained. The
-  smoke test trains, predicts, evaluates, and writes tables end to end on
-  synthetic data in about two minutes on CPU.
-- `notebooks/colab_runner.ipynb` with only the section 16 steps.
+The phase 3 line in PROGRESS.md: the metrics that phase 2 did not build,
+calibration, thin and thick vessel sensitivity, and SQL queries 01, 02, 03,
+and 05. Also Hypothesis property tests for `metrics.py` (Dice in [0, 1],
+pixels outside the FOV never change a score, a perfect prediction scores 1)
+and `mutmut` on `metrics.py`.
+
+- AUC-ROC and AUC-PR per image, the Brier score, and a reliability diagram
+  from pooled out-of-fold probabilities (SPEC section 5).
+- Thin and thick sensitivity: skeletonize the ground truth, estimate width
+  with a distance transform, and bin skeleton pixels. The bins are tuned on
+  training data only and documented (rule 3).
+- An evaluation step that reads the saved predictions and fills the NULL
+  columns of `per_image_metrics`, without retraining.
+- The smoke test gains its evaluate step (section 14). Tables come in phase 4.
 
 ## Decisions to raise with the owner
 
-- Early stopping and threshold choice need validation Dice on whole images,
-  which means sliding-window inference and a FOV-masked Dice. PROGRESS.md
-  puts sliding-window inference and the metrics in phase 3, and `metrics.py`
-  is protected (section 5). Ask whether phase 2 builds `predict.py` and the
-  Dice part of `metrics.py` now, or uses something smaller until phase 3.
-- The threshold rule (section 5: maximize validation Dice) needs a candidate
-  grid. Its spacing is a config setting to agree on.
-- What counts as an epoch: `patches.per_epoch` patches with seed
-  `seed + epoch` is the simplest reading. Confirm it, and the patience for
-  early stopping.
-- Confirm that the VS Code Colab extension's runtimes set
-  `COLAB_RELEASE_TAG`, which `compute_platform` relies on. Colab installs
-  with `uv sync --locked` (D-011). Reported runs use a T4 (D-013).
+- AUCs need either scikit-learn, which changes the lockfile (ask first), or
+  a rank-based implementation in `metrics.py` tested against hand-worked
+  cases.
+- How evaluation writes its results: an `evaluate.py` CLI that updates the
+  existing rows, or new rows. The primary key is (run_id, dataset, image_id,
+  prediction_mode), so updating in place fits the schema without a change.
+- What "tune the width bins on training data" means under cross-validation:
+  per fold on that fold's training images, or once on all 20 labeled images.
+  The second uses held-out images to set a reporting bin, not a model
+  decision, but rule 3 should be checked with the owner.
+- The number of reliability-diagram bins, as a config setting.
+- Whether to store a SHA-256 for each prediction file in the database, so
+  that phase 3 lineage can detect a missing or mixed-up set. The spec review
+  suggested it. It would need a schema change, and `schema.sql` is protected.
 
-The owner settled the optional items from the phase 1 review. `check_data.py`
-logs a database constraint error as one line, and a split with no abnormal
-images logs "no abnormality notes". The patch flip probability is the
-`patches.flip_probability` setting (D-017). Dropping the planned check that
-rejects labels outside the FOV is accepted, since real DRIVE labels mark a
-few pixels outside it and the vessel fraction counts only pixels inside.
+Items left open from the phase 2 reviews, for the owner to decide:
+
+- A crash after `finish_run` but before the final `write_manifest` leaves
+  `manifest.json` without `finished_at`, and a finished run is never resumed.
+  Writing the manifest from the database whenever `train` exits would close it.
+- The ambiguity and resume tests all run in one process. The smoke test runs
+  `train` twice in subprocesses, and comparing those two runs' thresholds would
+  also test determinism across processes.
+- `verify_checkpoints.py` could log how many folds are complete, so a partial
+  download is not mistaken for a whole run.
+- The commit message of `ca68ad8` ends with a sentence about the author's own
+  checking, which the style review flagged. Changing it means rewriting local
+  history before the push. It was left alone.
+- First Colab session: confirm that `COLAB_RELEASE_TAG` is set (the notebook
+  prints it), that a T4 is assigned, and that `enable_op_determinism` raises
+  no unimplemented-determinism error on the GPU for these ops.
 
 ## Working notes
 
 - Protected files trigger an approval prompt, which is expected. They are
-  hooks, CI, lockfiles, `data/CHECKSUMS.sha256`, docs/SPEC.md, and the
-  section 5 files (see `.claude/protected-paths`). `metrics.py` is on that
-  list.
-- Write commit messages to a scratch file and commit with `git commit -F`,
-  since the Bash guard matches blocked flags anywhere in the command text.
+  hooks, CI, lockfiles, `data/CHECKSUMS.sha256`, docs/SPEC.md, the Makefile,
+  and the section 5 files (see `.claude/protected-paths`), including
+  `metrics.py`. Edit them with the Edit tool, never through a shell script,
+  so the prompt appears.
+- Write commit messages to a scratch file and commit with `git commit -F`.
+  The allowed types are `feat`, `fix`, `refactor`, `perf`, `test`, `docs`,
+  `build`, `ci`, `chore`, and `exp`. `style` is rejected.
 - Running one test file with `pytest` fails the 85% coverage floor. Use
   `--no-cov` for partial runs, or `make test` for the full suite. Add
   `-p no:warnings` to hide TensorFlow's `gast` deprecation noise.
-- Pytest treats `ResourceWarning` as an error. Open PIL images with `with`.
+- Pytest treats `ResourceWarning` as an error. Open PIL images with `with`,
+  and close SQLite connections with `contextlib.closing`, since
+  `with sqlite3.connect(...)` only commits.
 - Anything that calls a CLI's `main()` in process must restore the root
-  logger afterwards, or `setup_logging` in later tests becomes a no-op (see
-  `tests/unit/test_check_data.py`).
-- Tests that call `check_data.py` must pass `--db` into `tmp_path`, or they
-  write synthetic rows into the real `results/experiments.db`.
-- Pydantic strict mode rejects YAML lists for tuple fields, so `load_config`
-  validates through JSON.
-- mutmut 3 copies only the mutated file into `mutants/src`, so
-  `pyproject.toml` lists `src/` under `also_copy`. `make mutate` clears
-  `mutants/` first.
-- Pillow reads a GIF with a gray palette back as mode `L`, and an all-black
-  image saved with palette optimization as `P`. Save test masks with
-  `optimize=False`.
-- In zsh, `$VAR` holding a file list is not word-split. Use `xargs`.
-  `check_numbers.py` skips itself until `results/tables` exists.
+  logger afterwards (see `tests/unit/test_train.py`).
+- Tests that call `check_data.py` or `train` must pass `--db` and the output
+  directories into `tmp_path`.
+- The resume tests record runs against a throwaway git repository, so they
+  pass whether or not the working copy is dirty. A run of `train` from this
+  checkout with uncommitted changes always starts a new run.
+- Keras 3 seeds weights from its own generator. `set_seed` handles it, and
+  any new seeding must go through `set_seed`.
+- NumPy 2 compares a float32 array with a Python float in float32. Threshold
+  with `metrics.binarize`, never `prob >= t`.
+- In zsh, `$VAR` holding several arguments is not word-split. Use an array or
+  `xargs`.
 - `uv run ruff format` rewrites files, so read them again before an Edit.
-- Ask before pushing, opening a pull request, or changing the lockfile.
+- `check_numbers.py` skips itself until `results/tables` exists.
 - This file carries context between sessions. At the end of a session or
   phase, rewrite it for the next piece of work and replace anything out of
   date.
