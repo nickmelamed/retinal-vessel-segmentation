@@ -255,9 +255,15 @@ seed. Any variant given another seed would have silently changed its folds.
 The owner chose a separate `folds.seed` over a check at training time that
 compares a new run's folds with the baseline's. The check could only fire
 once a baseline run existed, and only at training time, possibly on Colab.
-A test instead requires every file in
-`configs/` to share one `folds.seed` and the same fold sizes, so a drifting
-config fails `make ci` before any run exists.
+A test instead requires every cross-validation
+config in `configs/` to share one `folds.seed` and the same fold sizes, so a
+drifting config fails `make ci` before any run exists. `final.yaml` and
+`external.yaml`, when they arrive, are outside that rule, since the frozen
+model trains on all 20 images and external validation has no folds.
+
+`runs.seed` records the top-level seed, not the fold seed, which lives in
+`runs.config`. Anything that pairs runs by their folds, like the section 7
+comparisons in R, must join on `fold_assignments`, not on `runs.seed`.
 
 `folds.seed` is 20260926, the value the baseline already used, so the
 baseline's fold assignment is unchanged. The smoke config now uses the

@@ -7,6 +7,7 @@ import yaml
 from retinal_vessels.config import Config, ConfigError, load_config
 
 CONFIGS = Path(__file__).resolve().parents[2] / "configs"
+NON_CV_CONFIGS = {"final", "external"}
 
 
 def write(tmp_path: Path, data: Any) -> Path:
@@ -28,10 +29,12 @@ def test_shipped_configs_load(name: str) -> None:
     assert config.preprocess.clahe_tile_grid == (8, 8)
 
 
-def test_every_config_shares_one_fold_seed() -> None:
+def test_every_cv_variant_shares_one_fold_seed() -> None:
     # SPEC section 7 pairs per-image results across variants, which only
-    # works if every variant trains and tests on the same folds.
-    configs = [load_config(path) for path in sorted(CONFIGS.glob("*.yaml"))]
+    # works if every variant trains and tests on the same folds. The frozen
+    # model and external validation configs have no folds (section 5).
+    paths = [p for p in sorted(CONFIGS.glob("*.yaml")) if p.stem not in NON_CV_CONFIGS]
+    configs = [load_config(path) for path in paths]
     assert len(configs) >= 2
     assert len({c.folds.seed for c in configs}) == 1
     assert len({(c.folds.n_folds, c.folds.n_val) for c in configs}) == 1
