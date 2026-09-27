@@ -1,5 +1,5 @@
-# Tiny settings for the CI smoke run on synthetic data. Folds match the
-# baseline so the smoke run exercises the real split.
+# Tiny settings for the CI smoke run on synthetic data. Fold sizes match the
+# baseline, so the smoke run exercises the real 14/2/4 split.
 variant: smoke
 seed: 0
 

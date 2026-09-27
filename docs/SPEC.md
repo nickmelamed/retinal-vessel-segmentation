@@ -55,7 +55,7 @@ The facts below are as commonly reported in the literature. Before downloading e
 
 ## 5. Evaluation design (ask before changing)
 
-- **5-fold cross-validation over the 20 labeled images, split by whole image** (never by patch). Each fold: 4 held-out test images; of the remaining 16, 2 are validation (early stopping and threshold choice) and 14 are training. Folds are deterministic from the seed and stored in the database.
+- **5-fold cross-validation over the 20 labeled images, split by whole image** (never by patch). Each fold: 4 held-out test images; of the remaining 16, 2 are validation (early stopping and threshold choice) and 14 are training. The abnormal training images 25, 26, and 32 go to three different test folds (D-016). Folds are deterministic from the seed and stored in the database.
 - Every labeled image receives exactly one **out-of-fold** prediction. All headline metrics are computed on these 20 out-of-fold predictions.
 - **Threshold:** chosen per fold to maximize Dice on that fold's validation images, then applied unchanged to its held-out images. Record every threshold and the rule used.
 - **All metrics are computed inside the FOV mask only.**
