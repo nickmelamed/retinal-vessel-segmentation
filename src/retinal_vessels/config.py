@@ -123,6 +123,16 @@ class ThresholdConfig(_Section):
     divisions: int = Field(ge=2)
 
 
+class EvaluationConfig(_Section):
+    """Settings for the metrics computed from saved predictions (SPEC section 5, D-021)."""
+
+    # Equal-width probability bins of the pooled reliability diagram.
+    reliability_bins: int = Field(ge=2)
+    # Each fold's thin/thick edge is this quantile of skeleton radius over
+    # its training and validation labels.
+    thin_quantile: float = Field(gt=0, lt=1)
+
+
 class Config(_Section):
     """One experiment variant, as read from ``configs/<variant>.yaml``."""
 
@@ -136,6 +146,7 @@ class Config(_Section):
     training: TrainingConfig
     inference: InferenceConfig
     threshold: ThresholdConfig
+    evaluation: EvaluationConfig
 
     @model_validator(mode="after")
     def _sizes_fit_the_model(self) -> "Config":

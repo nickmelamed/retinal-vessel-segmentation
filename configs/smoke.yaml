@@ -49,3 +49,7 @@ inference:
 
 threshold:
   divisions: 100
+
+evaluation:
+  reliability_bins: 10
+  thin_quantile: 0.5
