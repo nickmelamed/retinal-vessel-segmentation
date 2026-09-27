@@ -17,7 +17,10 @@ from retinal_vessels.metrics import (
     dice_per_threshold,
     reliability,
     selection_rule,
+    skeleton_radius,
+    thin_edge,
     threshold_grid,
+    width_sensitivity,
 )
 
 
@@ -289,3 +292,95 @@ def test_reliability_rejects_bad_inputs() -> None:
     negative = np.array([[-0.1, 0.6]], dtype=np.float32)
     with pytest.raises(ValueError, match=r"\[0, 1\]"):
         reliability([negative], [label], [fov], n_bins=10)
+
+
+def vessels() -> np.ndarray:
+    # A 1 px line in row 2 and a 5 px bar in rows 6-10, both well inside the image.
+    label = np.zeros((14, 16), dtype=bool)
+    label[2, 2:14] = True
+    label[6:11, 2:14] = True
+    return label
+
+
+FULL = np.ones((14, 16), dtype=bool)
+
+
+def test_skeleton_radius_of_known_widths() -> None:
+    skeleton, radius = skeleton_radius(vessels(), FULL)
+    assert skeleton[2, 2:14].all()
+    assert set(radius[2][skeleton[2]]) == {1.0}
+    # The bar's skeleton runs along its middle row, three pixels from either edge.
+    assert radius[8, 5:11].tolist() == [3.0] * 6
+    assert skeleton[8, 5:11].all()
+    assert radius[~vessels()].max() == 0
+
+
+def test_skeleton_radius_treats_the_image_border_as_background() -> None:
+    label = np.zeros((6, 10), dtype=bool)
+    label[0:3, :] = True
+    skeleton, radius = skeleton_radius(label, np.ones_like(label))
+    assert radius.max() == 2.0
+    assert radius[skeleton].max() == 2.0
+
+
+def test_skeleton_radius_ignores_pixels_outside_the_fov() -> None:
+    fov = np.zeros_like(FULL)
+    fov[:5] = True
+    skeleton, radius = skeleton_radius(vessels(), fov)
+    assert not skeleton[5:].any()
+    assert radius[5:].max() == 0
+    flipped = np.where(fov, vessels(), ~vessels())
+    again = skeleton_radius(flipped, fov)
+    np.testing.assert_array_equal(again[0], skeleton)
+    np.testing.assert_array_equal(again[1], radius)
+
+
+def test_thin_edge_is_an_observed_radius() -> None:
+    line_only = vessels()
+    line_only[6:] = False
+    assert thin_edge([line_only], [FULL], 0.5) == 1.0
+    # The line and the bar ends are thin, so the median is 1 and the top is 3.
+    assert thin_edge([vessels(), line_only], [FULL, FULL], 0.5) == 1.0
+    assert thin_edge([vessels()], [FULL], 0.99) == 3.0
+
+
+def test_thin_edge_rejects_bad_inputs() -> None:
+    with pytest.raises(ValueError, match="quantile"):
+        thin_edge([vessels()], [FULL], 1.0)
+    with pytest.raises(ValueError, match="quantile"):
+        thin_edge([vessels()], [FULL], 0.0)
+    with pytest.raises(ValueError, match="matching"):
+        thin_edge([], [], 0.5)
+    with pytest.raises(ValueError, match="matching"):
+        thin_edge([vessels()], [FULL, FULL], 0.5)
+    with pytest.raises(ValueError, match="no vessel skeleton"):
+        thin_edge([np.zeros_like(FULL)], [FULL], 0.5)
+
+
+def test_width_sensitivity_by_bin() -> None:
+    label = vessels()
+    skeleton, radius = skeleton_radius(label, FULL)
+    n_thin = int((skeleton & (radius <= 1.0)).sum())
+    n_thick = int((skeleton & (radius > 1.0)).sum())
+    assert n_thin >= 12 and n_thick >= 6
+    bar_only = label.copy()
+    bar_only[2] = False
+    # The bar's own thin end pixels are hit too, so thin sensitivity counts them.
+    thin_hits = int((skeleton & (radius <= 1.0) & bar_only).sum())
+    result = width_sensitivity(bar_only, label, FULL, edge=1.0)
+    assert (result.n_thin, result.n_thick) == (n_thin, n_thick)
+    assert result.thin == pytest.approx(thin_hits / n_thin)
+    assert result.thick == 1.0
+    perfect = width_sensitivity(label, label, FULL, edge=1.0)
+    assert (perfect.thin, perfect.thick) == (1.0, 1.0)
+    missed = width_sensitivity(np.zeros_like(label), label, FULL, edge=1.0)
+    assert (missed.thin, missed.thick) == (0.0, 0.0)
+
+
+def test_width_sensitivity_of_an_empty_bin_is_none() -> None:
+    empty = width_sensitivity(np.zeros_like(FULL), np.zeros_like(FULL), FULL, edge=1.0)
+    assert (empty.thin, empty.thick, empty.n_thin, empty.n_thick) == (None, None, 0, 0)
+    line_only = vessels()
+    line_only[6:] = False
+    only_thin = width_sensitivity(line_only, line_only, FULL, edge=1.0)
+    assert (only_thin.thin, only_thin.thick) == (1.0, None)

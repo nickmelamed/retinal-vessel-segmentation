@@ -1,4 +1,4 @@
-"""Per-image segmentation metrics, computed inside the FOV only (SPEC section 5).
+"""Segmentation and calibration metrics, computed inside the FOV only (SPEC section 5).
 
 A pixel counts as vessel when its probability is at least the threshold.
 Pixels outside the FOV never enter any count. A ratio whose denominator is
@@ -10,7 +10,9 @@ nor the prediction has a vessel pixel the two agree completely, so Dice is 1.
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+import cv2
 import numpy as np
+from skimage.morphology import skeletonize
 
 
 @dataclass(frozen=True)
@@ -208,6 +210,76 @@ def reliability(
         mean_probability=per_bin(prob_sums),
         vessel_fraction=per_bin(vessel_sums),
         pooled_brier=squared_error / int(counts.sum()),
+    )
+
+
+def skeleton_radius(label: np.ndarray, fov: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return the vessel skeleton and each pixel's vessel radius, inside ``fov``.
+
+    Both are (H, W): the skeleton bool, and the radius float64, the Euclidean
+    distance from each vessel pixel to the nearest non-vessel pixel. A one
+    pixel wide vessel has radius 1 on its skeleton. Only ``label & fov``
+    counts as vessel, so pixels outside the FOV never change either result.
+    """
+    _check_inputs(label, label, fov, np.bool_)
+    vessel = label & fov
+    # skimage ships no type hints for skeletonize.
+    skeleton: np.ndarray = skeletonize(vessel)  # type: ignore[no-untyped-call]
+    # OpenCV treats beyond the image border as vessel, so pad with background.
+    padded = np.pad(vessel, 1).astype(np.uint8)
+    distance = cv2.distanceTransform(padded, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    return skeleton, distance[1:-1, 1:-1].astype(np.float64)
+
+
+def thin_edge(labels: Sequence[np.ndarray], fovs: Sequence[np.ndarray], quantile: float) -> float:
+    """Return the ``quantile`` of skeleton radius pooled over ``labels``.
+
+    This sets a fold's thin/thick edge from its training and validation
+    labels (D-021). The result is an observed radius, not an interpolation
+    between two, so it is the edge that bins those pixels.
+    """
+    if not 0 < quantile < 1:
+        raise ValueError(f"quantile must lie in (0, 1), got {quantile}")
+    if not labels or len(labels) != len(fovs):
+        raise ValueError(f"need matching, non-empty sequences, got {len(labels)}, {len(fovs)}")
+    radii = []
+    for label, fov in zip(labels, fovs, strict=True):
+        skeleton, radius = skeleton_radius(label, fov)
+        radii.append(radius[skeleton])
+    pooled = np.concatenate(radii)
+    if pooled.size == 0:
+        raise ValueError("labels have no vessel skeleton inside the FOV")
+    return float(np.quantile(pooled, quantile, method="inverted_cdf"))
+
+
+@dataclass(frozen=True)
+class WidthSensitivity:
+    """Sensitivity on thin and thick skeleton pixels, with the pixel counts behind them."""
+
+    thin: float | None
+    thick: float | None
+    n_thin: int
+    n_thick: int
+
+
+def width_sensitivity(
+    prediction: np.ndarray, label: np.ndarray, fov: np.ndarray, edge: float
+) -> WidthSensitivity:
+    """Return the fraction of thin and of thick skeleton pixels that ``prediction`` marks.
+
+    A skeleton pixel is thin when its radius is at most ``edge``. All three
+    arrays are (H, W) bool. A bin with no pixels has sensitivity None.
+    """
+    _check_inputs(prediction, label, fov, np.bool_)
+    skeleton, radius = skeleton_radius(label, fov)
+    thin = skeleton & (radius <= edge)
+    thick = skeleton & (radius > edge)
+    n_thin, n_thick = int(thin.sum()), int(thick.sum())
+    return WidthSensitivity(
+        thin=_ratio(int(np.sum(prediction & thin)), n_thin),
+        thick=_ratio(int(np.sum(prediction & thick)), n_thick),
+        n_thin=n_thin,
+        n_thick=n_thick,
     )
 
 
