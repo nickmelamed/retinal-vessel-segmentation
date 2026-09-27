@@ -133,6 +133,11 @@ def test_finds_the_unfinished_matching_run(db: sqlite3.Connection) -> None:
     assert find_resumable_run(db, *key) is None
 
 
+def test_a_dirty_run_is_never_resumable(db: sqlite3.Connection) -> None:
+    db.execute("UPDATE runs SET git_dirty = 1")
+    assert find_resumable_run(db, "baseline", "hash", "c0ffee", "data") is None
+
+
 def test_several_matching_runs_are_an_error(db: sqlite3.Connection) -> None:
     insert_run(db, replace(MANIFEST, run_id="run-b"))
     with pytest.raises(RuntimeError, match="run-a.*run-b"):

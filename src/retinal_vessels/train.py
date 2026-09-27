@@ -8,10 +8,10 @@ then does the best checkpoint predict the fold's held-out test images, whose
 probabilities are saved under ``results/<run_id>/predictions/`` and whose
 metrics go to the database.
 
-The run is resumable. Rerunning the same command continues the unfinished
-run with the same variant, config, commit, and data. Complete folds are
-skipped and a fold left running is retrained from scratch. Pass ``--new`` to
-start a fresh run instead.
+The run is resumable. Rerunning the same command on a clean tree continues
+the unfinished clean-tree run with the same variant, config, commit, and
+data. Complete folds are skipped and a fold left running is retrained from
+scratch. Pass ``--new`` to start a fresh run instead.
 """
 
 import argparse
@@ -247,7 +247,11 @@ def open_run(
         data=report,
         env=env,
     )
-    if not new:
+    if manifest.git_dirty and not new:
+        # Uncommitted edits could differ from whatever code trained the
+        # earlier folds, while the run's row would still name one commit.
+        logger.warning("The working tree is dirty, so this starts a new run rather than resuming.")
+    elif not new:
         try:
             found = find_resumable_run(
                 conn,

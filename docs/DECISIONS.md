@@ -302,9 +302,13 @@ whose layers draw initial weights from their own generator. The baseline
 trains for at most 100 epochs with patience 10.
 
 Rerunning `make train` continues the unfinished run whose variant, config
-hash, commit, and data hash all match. More than one match is an error, and
+hash, commit, and data hash all match. Only clean-tree runs are resumed, and
+only from a clean tree. A dirty tree always starts a new run, since
+uncommitted edits could differ from the code that trained the earlier folds
+while the run's row names a single commit (section 17). The phase 2 spec
+review found this gap. More than one match is an error, and
 `--new` always starts a fresh run. A finished run is never resumed, so
-running the command again after a run finishes starts a new one. Resuming is
+the same command then starts a new one. Resuming is
 refused if the stored fold assignments differ from the computed ones, or if
 the environment differs (Python, TensorFlow or CUDA version, device, GPU
 type, or platform), since reported comparisons must not mix hardware

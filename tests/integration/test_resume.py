@@ -3,13 +3,14 @@
 One uninterrupted smoke run is the reference. Every other run must end with
 exactly the same fold assignments, thresholds, metrics, history, and
 predictions, however it was interrupted. That holds bit for bit only because
-the smoke config turns on deterministic ops and each fold seeds itself from
-(seed, fold) alone.
+the smoke config turns on deterministic ops and each fold's seeds depend
+only on (seed, fold) and (seed, fold, epoch).
 """
 
 import logging
 import shutil
 import sqlite3
+import subprocess
 from collections.abc import Iterator
 from contextlib import closing
 from dataclasses import dataclass
@@ -69,6 +70,7 @@ class Setup:
     samples: list[Sample]
     report: ChecksumReport
     data_root: Path
+    repo: Path
 
 
 @dataclass(frozen=True)
@@ -84,11 +86,22 @@ def setup(tmp_path_factory: pytest.TempPathFactory) -> Setup:
     drive = write_synthetic_drive(root)
     entries = compute_checksums({"DRIVE": drive})
     (root / "CHECKSUMS.sha256").write_text(format_checksums(entries))
+    # A throwaway repository, so the git state these runs record is clean
+    # whatever state the working copy running the tests is in.
+    repo = tmp_path_factory.mktemp("repo")
+    (repo / "code.py").write_text("x = 1\n")
+    for args in (
+        ["init", "-q"],
+        ["add", "code.py"],
+        ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init"],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True)
     return Setup(
         config=load_config(REPO / "configs" / "smoke.yaml"),
         samples=load_drive(drive, "training"),
         report=ChecksumReport(checked=entries),
         data_root=root,
+        repo=repo,
     )
 
 
@@ -99,6 +112,7 @@ def run(setup: Setup, where: Path, **kwargs: Any) -> Outcome:
         create_schema(conn)
         write_images(conn, [image_record(s) for s in setup.samples])
         kwargs.setdefault("env", ENV)
+        kwargs.setdefault("repo", setup.repo)
         run_id = train.run_cv(conn, setup.config, setup.samples, setup.report, dirs, **kwargs)
     return Outcome(db, dirs, run_id)
 
@@ -265,7 +279,7 @@ def test_new_starts_a_fresh_run(setup: Setup, reference: Outcome, tmp_path: Path
             [],
             setup.report,
             train.OutputDirs(tmp_path / "results", tmp_path / "models"),
-            REPO,
+            setup.repo,
             ENV,
             new=True,
         )
@@ -274,21 +288,8 @@ def test_new_starts_a_fresh_run(setup: Setup, reference: Outcome, tmp_path: Path
         assert conn.execute("SELECT COUNT(*) FROM runs").fetchone() == (2,)
 
 
-@pytest.fixture
-def restore_root_logger() -> Iterator[None]:
-    root = logging.getLogger()
-    handlers, level = list(root.handlers), root.level
-    yield
-    root.handlers = handlers
-    root.setLevel(level)
-
-
-def test_main_reports_ambiguous_runs(
-    setup: Setup,
-    reference: Outcome,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    restore_root_logger: None,
+def test_several_unfinished_matches_refuse_to_resume(
+    setup: Setup, reference: Outcome, tmp_path: Path, spy: list[int]
 ) -> None:
     db = unfinished_copy(reference, tmp_path)
     with closing(connect(db)) as conn, conn:
@@ -298,21 +299,34 @@ def test_main_reports_ambiguous_runs(
             "device, gpu_type, compute_platform, deterministic_ops, frozen_model_id, "
             "applied_threshold, started_at, finished_at, is_reported FROM runs"
         )
-    monkeypatch.delenv("DRIVE_DIR", raising=False)
-    code = train.main(
-        [
-            "--config",
-            str(REPO / "configs" / "smoke.yaml"),
-            "--data-root",
-            str(setup.data_root),
-            "--checksums",
-            str(setup.data_root / "CHECKSUMS.sha256"),
-            "--db",
-            str(db),
-            "--results-dir",
-            str(tmp_path / "results"),
-            "--models-dir",
-            str(tmp_path / "models"),
-        ]
-    )
-    assert code == 1
+    with pytest.raises(train.ResumeError, match="several unfinished runs"):
+        run(setup, tmp_path)
+    assert spy == []
+
+
+def test_a_dirty_tree_never_resumes(
+    setup: Setup, reference: Outcome, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Code edited after an interruption must not finish a run whose row
+    # records the clean commit it started on (SPEC section 17).
+    unfinished_copy(reference, tmp_path)
+    dirty = tmp_path / "repo"
+    shutil.copytree(setup.repo, dirty)
+    (dirty / "code.py").write_text("x = 2\n")
+    with closing(connect(tmp_path / "experiments.db")) as conn:
+        with caplog.at_level(logging.WARNING, logger="retinal_vessels.train"):
+            fresh = train.open_run(
+                conn,
+                setup.config,
+                [],
+                setup.report,
+                train.OutputDirs(tmp_path / "results", tmp_path / "models"),
+                dirty,
+                ENV,
+                new=False,
+            )
+        assert fresh != reference.run_id
+        assert conn.execute("SELECT git_dirty FROM runs WHERE run_id = ?", (fresh,)).fetchone() == (
+            1,
+        )
+    assert "dirty" in caplog.text

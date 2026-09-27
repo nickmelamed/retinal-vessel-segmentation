@@ -89,3 +89,18 @@ def test_main_refuses_data_that_fails_its_checksums(synthetic_data_root: Path) -
     (drive / "training" / "images" / "21_training.tif").write_bytes(b"corrupt")
     assert cli(synthetic_data_root, "--config", str(SMOKE)) == 1
     assert not (synthetic_data_root / "experiments.db").exists()
+
+
+def test_main_reports_a_run_it_cannot_resume(
+    synthetic_data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    drive = synthetic_data_root / "DRIVE"
+    (synthetic_data_root / "CHECKSUMS.sha256").write_text(
+        format_checksums(compute_checksums({"DRIVE": drive}))
+    )
+
+    def refuse(*args: object, **kwargs: object) -> str:
+        raise train.ResumeError("several unfinished runs match")
+
+    monkeypatch.setattr(train, "run_cv", refuse)
+    assert cli(synthetic_data_root, "--config", str(SMOKE)) == 1

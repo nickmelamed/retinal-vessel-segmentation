@@ -279,20 +279,23 @@ def run_manifest(conn: sqlite3.Connection, run_id: str) -> RunManifest:
 def find_resumable_run(
     conn: sqlite3.Connection, variant: str, config_hash: str, git_commit: str, data_hash: str
 ) -> str | None:
-    """Return the unfinished run with this variant, config, commit, and data, if any.
+    """Return the unfinished clean-tree run with this variant, config, commit, and data.
 
     A run matching on all four trained with the same code on the same data,
-    so its completed folds can stand. More than one match raises
-    ``RuntimeError``, since it is unclear which to continue.
+    so its completed folds can stand. A run started on a dirty tree never
+    matches, since its code cannot be recovered from the commit. More than one
+    match raises ``RuntimeError``, since it is unclear which to continue.
     """
     rows = conn.execute(
-        "SELECT run_id FROM runs WHERE finished_at IS NULL AND variant = ? "
+        "SELECT run_id FROM runs WHERE finished_at IS NULL AND git_dirty = 0 AND variant = ? "
         "AND config_hash = ? AND git_commit = ? AND data_hash = ? ORDER BY run_id",
         (variant, config_hash, git_commit, data_hash),
     ).fetchall()
     if len(rows) > 1:
         ids = [r[0] for r in rows]
-        raise RuntimeError(f"several unfinished runs match, resume one explicitly: {ids}")
+        raise RuntimeError(
+            f"several unfinished runs match: {ids}. Pass --new to start a fresh run."
+        )
     return None if not rows else str(rows[0][0])
 
 
