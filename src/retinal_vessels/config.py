@@ -51,7 +51,9 @@ class PatchesConfig(_Section):
     size: int = Field(ge=2, multiple_of=2)
     per_epoch: int = Field(ge=1)
     batch_size: int = Field(ge=1)
-    flip: bool
+    # Chance of flipping each patch, drawn separately for rows and columns.
+    # 0 switches flips off.
+    flip_probability: float = Field(ge=0, le=1)
     rot90: bool
     # Added to the preprocessed image, which is standardized when that step is on.
     brightness_delta: float = Field(ge=0)

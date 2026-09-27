@@ -15,8 +15,6 @@ from retinal_vessels.config import PatchesConfig
 
 IMAGE, LABEL, FOV = 0, 1, 2
 N_ROTATIONS = 4
-# A flipped fundus is as plausible as the original, so flip half the time.
-FLIP_PROBABILITY = 0.5
 
 
 def sample_centers(fovs: Sequence[np.ndarray], n: int, rng: np.random.Generator) -> np.ndarray:
@@ -58,8 +56,8 @@ def sample_augmentation(cfg: PatchesConfig, n: int, rng: np.random.Generator) ->
     """
     low, high = cfg.contrast_range
     return Augmentation(
-        flip_rows=rng.random(n) < FLIP_PROBABILITY if cfg.flip else np.zeros(n, dtype=bool),
-        flip_cols=rng.random(n) < FLIP_PROBABILITY if cfg.flip else np.zeros(n, dtype=bool),
+        flip_rows=rng.random(n) < cfg.flip_probability,
+        flip_cols=rng.random(n) < cfg.flip_probability,
         rotations=rng.integers(0, N_ROTATIONS, size=n) if cfg.rot90 else np.zeros(n, dtype=int),
         brightness=rng.uniform(-cfg.brightness_delta, cfg.brightness_delta, size=n),
         contrast=rng.uniform(low, high, size=n),

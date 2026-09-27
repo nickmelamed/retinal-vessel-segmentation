@@ -221,6 +221,13 @@ can ignore pixels outside the FOV. Every random choice in patch sampling is
 drawn up front from one seeded NumPy generator, which keeps the `tf.data`
 pipeline deterministic even with parallel maps.
 
+The owner asked for the flip probability to be a config setting,
+`patches.flip_probability`, in place of an on or off `flip` flag. One
+number cannot contradict itself the way a flag and a probability could, and
+0 switches flips off. Both shipped configs use 0.5. The flip draws are
+consumed even at 0, so changing the probability never shifts the other
+augmentation draws for a given seed.
+
 The within-FOV vessel fraction counts labeled pixels inside the FOV only.
 The real DRIVE labels mark a few pixels outside it.
 

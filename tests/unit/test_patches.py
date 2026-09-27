@@ -18,7 +18,12 @@ def config(**overrides: Any) -> PatchesConfig:
     return base.model_copy(update={"size": SIZE, "per_epoch": 50, "batch_size": 8, **overrides})
 
 
-NO_AUG = {"flip": False, "rot90": False, "brightness_delta": 0.0, "contrast_range": (1.0, 1.0)}
+NO_AUG = {
+    "flip_probability": 0.0,
+    "rot90": False,
+    "brightness_delta": 0.0,
+    "contrast_range": (1.0, 1.0),
+}
 
 
 def fovs() -> np.ndarray:
@@ -90,6 +95,13 @@ def test_augmentation_stays_in_its_configured_ranges() -> None:
     assert aug.contrast.min() >= 0.8 and aug.contrast.max() <= 1.25
 
 
+@pytest.mark.parametrize("probability", [0.0, 1.0])
+def test_flip_probability_sets_how_often_patches_flip(probability: float) -> None:
+    aug = sample_augmentation(config(flip_probability=probability), 200, np.random.default_rng(0))
+    for flips in (aug.flip_rows, aug.flip_cols):
+        assert flips.all() if probability else not flips.any()
+
+
 def test_patches_have_the_configured_shapes() -> None:
     out = batches(make_patch_dataset(*arrays(), config(), seed=0))
     assert [len(b[0]) for b in out] == [8] * 6 + [2]
@@ -143,7 +155,7 @@ def test_different_seeds_give_different_patches() -> None:
 def test_geometric_augmentation_keeps_image_and_label_aligned() -> None:
     _, labels, f = arrays()
     images = labels.astype(np.float32)  # the image is its own label
-    cfg = config(flip=True, rot90=True, brightness_delta=0.0, contrast_range=(1.0, 1.0))
+    cfg = config(flip_probability=0.5, rot90=True, brightness_delta=0.0, contrast_range=(1.0, 1.0))
     for x, y, w in batches(make_patch_dataset(images, labels, f, cfg, seed=1)):
         np.testing.assert_array_equal(x, y * w)
 
@@ -157,7 +169,7 @@ def test_geometric_augmentation_changes_some_patches() -> None:
 
 def test_jitter_touches_only_the_image_inside_the_fov() -> None:
     images, labels, f = arrays()
-    cfg = config(flip=False, rot90=False, brightness_delta=0.5, contrast_range=(0.5, 2.0))
+    cfg = config(flip_probability=0.0, rot90=False, brightness_delta=0.5, contrast_range=(0.5, 2.0))
     plain = batches(make_patch_dataset(images, labels, f, config(**NO_AUG), seed=3))
     jittered = batches(make_patch_dataset(images, labels, f, cfg, seed=3))
     for (px, py, pw), (jx, jy, jw) in zip(plain, jittered, strict=True):

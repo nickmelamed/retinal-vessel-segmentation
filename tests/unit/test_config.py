@@ -65,6 +65,9 @@ def test_rejects_missing_key(
         ("preprocess", "clahe_tile_grid", [8, 0]),
         ("patches", "contrast_range", [1.1, 0.9]),
         ("folds", "n_val", 0),
+        ("patches", "flip_probability", 1.5),
+        ("patches", "flip_probability", -0.1),
+        ("patches", "flip_probability", True),
     ],
 )
 def test_rejects_bad_value(

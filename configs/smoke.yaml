@@ -19,7 +19,7 @@ patches:
   size: 32
   per_epoch: 64
   batch_size: 8
-  flip: true
+  flip_probability: 0.5
   rot90: true
   brightness_delta: 0.1
   contrast_range: [0.9, 1.1]
