@@ -11,7 +11,7 @@ phase 1 merges.
 Phase 1 is finished on `phase/1-data` and ticked in PROGRESS.md. It is not
 pushed yet, and the pull request (merge commit, not squash) waits for the
 owner. Check `gh pr list`, and cut `phase/2-model` from `main` once it has
-merged. `make ci` passes on the branch: 211 tests at 97.82% coverage.
+merged. `make ci` passes on the branch: 218 tests at 97.82% coverage.
 
 What phase 1 added:
 
@@ -40,7 +40,7 @@ What phase 1 added:
 - `patches.py` builds a batched `tf.data` dataset of `(x, y, w)` patches,
   with `w` the FOV patch for masking the loss. All randomness is drawn up
   front from one NumPy generator, so one seed gives one sequence of batches.
-  Pass a new seed for each epoch.
+  Pass a new seed for each epoch. The flip chance is `flip_probability`.
 - `make check-data` also writes the 40 DRIVE `images` rows to
   `results/experiments.db` and logs the pooled within-FOV vessel fraction
   (D-018). It has been run on the real data. No document quotes the number
@@ -94,17 +94,12 @@ runs), and 17 (run manifest) give the details.
   `COLAB_RELEASE_TAG`, which `compute_platform` relies on. Colab installs
   with `uv sync --locked` (D-011). Reported runs use a T4 (D-013).
 
-Optional items from the phase 1 review, not acted on:
-
-- `check_data.py` would log "abnormality notes on " with nothing after it
-  for a split with no abnormal images.
-- An `sqlite3.IntegrityError` from `write_images` escapes `check_data.py` as
-  a traceback, not a one-line logged error.
-- `FLIP_PROBABILITY = 0.5` in `patches.py` is a constant, not a config
-  setting.
-- The plan had `validate_sample` reject labels outside the FOV. It was
-  dropped because real DRIVE labels mark a few pixels outside it, and the
-  vessel fraction counts only pixels inside (D-017).
+The owner settled the optional items from the phase 1 review. `check_data.py`
+logs a database constraint error as one line, and a split with no abnormal
+images logs "no abnormality notes". The patch flip probability is the
+`patches.flip_probability` setting (D-017). Dropping the planned check that
+rejects labels outside the FOV is accepted, since real DRIVE labels mark a
+few pixels outside it and the vessel fraction counts only pixels inside.
 
 ## Working notes
 
