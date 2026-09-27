@@ -7,11 +7,10 @@ do the work on a `phase/1-data` branch cut from `main` after phase 0 merges.
 
 ## Where things stand (2026-09-26)
 
-Phase 0 is built on `phase/0-setup` and ticked in PROGRESS.md. Unless the
-owner has since pushed it, the branch is local only, with no pull request
-yet. Check with `git log origin/main..phase/0-setup` and `gh pr list`. If it
-is not merged, finish that first: push, open the PR with the template, and
-merge with a merge commit, after asking the owner each time.
+Phase 0 is built on `phase/0-setup` and ticked in PROGRESS.md. The branch
+is pushed and open as PR #1. CI passes on GitHub. Check `gh pr view 1` for
+whether it has merged, and if not, ask the owner before merging (merge
+commit, not squash).
 
 What exists now:
 
@@ -19,11 +18,16 @@ What exists now:
   `.python-version` pinned to 3.13 with TensorFlow 2.21 (D-001, D-003).
 - `src/retinal_vessels/` holds four modules:
   - `utils.py` for `setup_logging` and `set_seed`
-  - `provenance.py` for checksums, git state, environment, and run manifests
+  - `provenance.py` for checksums, git state and tag, environment, UTC
+    timestamps, and run manifests. `build_manifest` takes a passing
+    `ChecksumReport` and refuses a failed one.
   - `db.py` for `connect` and `create_schema`
   - `__init__.py`
 - `sql/schema.sql` is schema version 1 (D-007). It has no anomaly tables yet.
   `runs.applied_threshold` and `runs.frozen_model_id` exist for query 09.
+  Folds count from 1, and fold 0 in `training_history` is the frozen model
+  (D-010). A reported run must be clean and tagged (`runs.git_tag`). Built
+  wheels carry a copy of the schema.
 - `scripts/check_data.py` (`make check-data`) verifies `data/DRIVE` against
   `data/CHECKSUMS.sha256` and never rewrites it (D-004). It passes on the
   real data. `DRIVE_DIR` points at the DRIVE directory itself.
@@ -36,18 +40,20 @@ What exists now:
 - Pre-commit hooks from CONTRIBUTING.md, including a commit-msg check.
 - CI (`ci.yml`), the Claude PR review (`claude-review.yml`), and the PR
   template.
-- Docs: DECISIONS.md (D-001 to D-009), DATA.md, REPO_SETTINGS.md,
+- Docs: DECISIONS.md (D-001 to D-012), DATA.md, REPO_SETTINGS.md,
   CHANGELOG.md, CITATION.cff, the MIT LICENSE, and an interim README.
-- `make ci` passes: 53 tests at 98% coverage, with the 85% floor set in
+- `make ci` passes: 61 tests at 97% coverage, with the 85% floor set in
   `pyproject.toml`. Pytest treats `ResourceWarning` as an error.
+- `.claude/skills/commit/` holds the commit procedure as a skill.
 
-The owner still has to add the `ANTHROPIC_API_KEY` secret and set branch
-protection (docs/REPO_SETTINGS.md). CI has not yet run on GitHub.
+The Claude review job fails until the owner adds the `ANTHROPIC_API_KEY`
+secret. Branch protection is also the owner's to set (docs/REPO_SETTINGS.md).
 
 ## What phase 1 must deliver
 
 The phase 1 line in PROGRESS.md says: DRIVE loader adapter with pathology
-metadata, validation, folds, preprocessing, patch sampling, and their tests.
+metadata, validation, folds, preprocessing, patch sampling, the leakage
+audit query 04 (moved from phase 3, D-012), and their tests.
 SPEC sections 4, 5 (folds only), 6, 7 (preprocessing and patches), 8
 (`images` and `fold_assignments`), and 14 give the details.
 
@@ -62,9 +68,13 @@ SPEC sections 4, 5 (folds only), 6, 7 (preprocessing and patches), 8
   unknown or missing keys are errors, with a test for each.
 - Folds: 5-fold over the 20 labeled images, split by whole image. Each fold
   has 4 test, 2 val, and 14 train images, deterministic from the seed, and
-  stored in `fold_assignments`. `data.py` is protected (section 5), so edits
-  prompt for approval. The required tests say folds are disjoint and every
-  image is `test` exactly once.
+  stored in `fold_assignments`, numbered 1 to 5 (D-010). `data.py` is
+  protected (section 5), so edits prompt for approval. The required tests
+  say folds are disjoint and every image is `test` exactly once.
+- `sql/queries/04_leakage_audit.sql` (protected) returns rows only if an
+  image has two roles in one fold or is `test` in two folds. Test that it
+  returns zero rows on a valid database and rows on a leaky one. The schema
+  deliberately allows those leaky rows (D-007).
 - Preprocessing (`preprocess.py`) runs green channel, CLAHE, a [0, 1] scale,
   and per-image standardization within the FOV. Each step can be toggled
   from config.
@@ -79,38 +89,17 @@ SPEC sections 4, 5 (folds only), 6, 7 (preprocessing and patches), 8
 
 ## Decisions to raise with the owner
 
-- **Colab install path (from phase 0 review).** Every make target calls
-  `uv run`, which builds its own `.venv` from `uv.lock` and ignores a pip
-  install of `requirements.txt`. `requirements.txt` is also exported with
-  `--no-emit-project`, so a pure pip setup never installs `retinal_vessels`,
-  and `__version__` then raises `PackageNotFoundError`. Choose before
-  phase 2 writes `colab_runner.ipynb`. One option is uv on Colab (`uv sync
-  --locked --no-dev`). The other is pip plus `pip install -e . --no-deps`
-  with make targets that do not force `uv run`. Amend D-003 either way.
-- **Fold numbering.** The schema allows `fold >= 0`. SPEC section 14's
-  resumability test talks about "fold 2" and "folds 3–5", which suggests
-  1-based numbering. Decide, and decide what fold the frozen model's
-  training history uses.
-- **Moving query 04 earlier.** Phase 1 starts writing `fold_assignments`,
-  but query 04 (the leakage audit) is scheduled for phase 3. Consider
-  adding it and its two tests in phase 1. It is protected.
-- **Optional items from the phase 0 spec review**, none acted on:
-  - `db.SCHEMA_PATH` uses `parents[2]`, which only works for editable
-    installs. This matters for the phase 12 Dockerfile.
-  - Manifests write `+00:00` timestamps with microseconds, while
-    `schema.sql` writes a `Z` suffix. Query 09's "before freeze time" check
-    should compare with `julianday()` or use one format.
-  - `build_manifest` accepts any checksum mapping. It could require a
-    passing `ChecksumReport` instead.
-  - Rule 7 needs tagged commits, and nothing records the git tag yet. One
-    option is `git describe --exact-match` in the manifest and `runs`.
-  - The commit-msg hook checks only the type, not lowercase or the trailing
-    period.
-  - `ci.yml` cancels in-progress runs on `main` too.
-  - `set_seed` sets `PYTHONHASHSEED` inside the running process, which has
-    no effect there.
-  - Colab detection relies on `COLAB_RELEASE_TAG`. Confirm the VS Code
-    Colab extension's runtimes set it.
+- **Which GPU for reported runs.** The owner has a paid Colab plan, while
+  SPEC section 16 assumes the free tier on a T4. Every reported run must use
+  the same GPU type. Ask which type to standardize on, then update SPEC 16
+  (protected) and log it in DECISIONS.md. Do not write the owner's account
+  details into the repo.
+- Everything from the phase 0 review is settled (D-010 to D-012 and the
+  commits on PR #1). The owner declined a stricter commit-msg hook, since
+  the `/commit` skill covers the subject rules.
+- Phase 2 only: confirm the VS Code Colab extension's runtimes set
+  `COLAB_RELEASE_TAG`, which `compute_platform` relies on. Colab installs
+  with `uv sync --locked` (D-011).
 
 ## Working notes
 
