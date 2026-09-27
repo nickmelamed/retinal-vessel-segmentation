@@ -29,8 +29,10 @@ What exists now:
   (D-010). A reported run must be clean and tagged (`runs.git_tag`). Built
   wheels carry a copy of the schema.
 - `scripts/check_data.py` (`make check-data`) verifies `data/DRIVE` against
-  `data/CHECKSUMS.sha256` and never rewrites it (D-004). It passes on the
-  real data. `DRIVE_DIR` points at the DRIVE directory itself.
+  `data/CHECKSUMS.sha256` and never rewrites it (D-004). The checksum file
+  always defaults to the committed one, and writing a missing one needs
+  `--init` (D-014). It passes on the real data. `DRIVE_DIR` points at the
+  DRIVE directory itself.
 - `tests/fixtures/synthetic_drive.py` writes a DRIVE-shaped tree with the
   real names, sizes, and formats. The labels and masks are grayscale GIFs
   holding 0 and 255, which is how the real files read back. `conftest.py`
@@ -40,9 +42,9 @@ What exists now:
 - Pre-commit hooks from CONTRIBUTING.md, including a commit-msg check.
 - CI (`ci.yml`), the Claude PR review (`claude-review.yml`), and the PR
   template.
-- Docs: DECISIONS.md (D-001 to D-012), DATA.md, REPO_SETTINGS.md,
+- Docs: DECISIONS.md (D-001 to D-014), DATA.md, REPO_SETTINGS.md,
   CHANGELOG.md, CITATION.cff, the MIT LICENSE, and an interim README.
-- `make ci` passes: 61 tests at 97% coverage, with the 85% floor set in
+- `make ci` passes: 62 tests at 97% coverage, with the 85% floor set in
   `pyproject.toml`. Pytest treats `ResourceWarning` as an error.
 - `.claude/skills/commit/` holds the commit procedure as a skill.
 
@@ -91,8 +93,8 @@ SPEC sections 4, 5 (folds only), 6, 7 (preprocessing and patches), 8
 
 - Reported runs use a T4 on the owner's paid Colab plan (D-013). No other
   GPU decision is open.
-- Everything from the phase 0 review is settled (D-010 to D-012 and the
-  commits on PR #1). The owner declined a stricter commit-msg hook, since
+- Everything from the phase 0 review and the Claude review on PR #1 is
+  settled (D-010 to D-014). The owner declined a stricter commit-msg hook, since
   the `/commit` skill covers the subject rules.
 - Phase 2 only: confirm the VS Code Colab extension's runtimes set
   `COLAB_RELEASE_TAG`, which `compute_platform` relies on. Colab installs
