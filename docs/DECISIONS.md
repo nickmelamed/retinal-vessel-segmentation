@@ -326,3 +326,56 @@ partial rows are deleted before it is retrained.
 The phase 2 smoke test trains the full smoke cross-validation through the
 CLI. The evaluation and table steps that SPEC section 14 lists join the smoke
 test in phases 3 and 4.
+
+## D-021 Phase 3 evaluation conventions (2026-09-27)
+
+The owner settled these before phase 3 work began.
+
+AUC-ROC and AUC-PR are computed in `metrics.py` with NumPy, so scikit-learn
+stays out of the lockfile. AUC-ROC counts, for each vessel pixel, the
+background pixels scored below it plus half of those tied with it. AUC-PR is
+the step-wise average precision, with tied scores treated as one threshold.
+It is not the trapezoidal area, which overstates a precision-recall curve.
+AUC-ROC is NULL when the FOV holds only one class, and AUC-PR is NULL when it
+holds no vessel pixel.
+
+A separate `evaluate` command reads a finished run's saved probabilities and
+fills the AUC, Brier, and thin and thick sensitivity columns of the existing
+`single` rows of `per_image_metrics`. The primary key already identifies
+those rows, so the schema does not change. Rerunning it gives the same
+values.
+
+The thin and thick bins follow rule 3. Each fold sets its own edge from the
+ground truth of its 16 training and validation images: the
+`evaluation.thin_quantile` quantile (0.5) of skeleton radius. A skeleton
+pixel is thin when its radius is at most the edge. The fold's held-out images
+are scored with that edge. Each fold's edge and bin pixel counts are saved
+with the results. The skeleton comes from scikit-image and the radius from
+OpenCV's exact Euclidean distance transform. Both are computed on the label
+inside the FOV, so pixels outside the FOV never change a score.
+
+The reliability diagram pools every out-of-fold FOV pixel into
+`evaluation.reliability_bins` (10) equal-width bins and keeps each bin's pixel
+count, so a sparse bin can be seen as such. The evaluation settings are a
+section of each variant config, so a run's stored config records how it was
+evaluated.
+
+Each fold writes `predictions/fold_<k>.sha256` next to its probability files.
+Evaluation checks those hashes, then recomputes the confusion metrics at the
+fold's stored threshold and requires them to equal the stored row exactly. A
+missing, stale, or swapped file therefore stops evaluation. The owner chose
+this over a checksum column, which would have needed a schema change. It
+also requires the data checksums to match the run's `data_hash`, so the
+labels are the ones training used.
+
+Evaluation first rewrites `manifest.json` from the `runs` row. A crash
+between marking the run finished and writing the manifest would otherwise
+leave the file without `finished_at`.
+
+Items from the phase 2 reviews are settled as follows.
+`verify_checkpoints.py` fails unless the run is finished with every fold
+complete (`--allow-unfinished` overrides this), and it always logs how many
+folds are complete. The smoke test compares its two training runs, each in
+its own process, and requires identical thresholds, validation Dice, and
+per-image Dice. `/scratch-train` no longer trains on the real DRIVE images,
+so no held-out result reaches a database during development.
