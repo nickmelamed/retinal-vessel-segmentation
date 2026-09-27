@@ -15,6 +15,7 @@ from retinal_vessels.db import (
     finish_run,
     fold_statuses,
     insert_run,
+    run_manifest,
     start_fold,
     stored_fold_rows,
     write_fold_assignments,
@@ -249,3 +250,11 @@ def test_finish_run_needs_every_started_fold_complete(db: sqlite3.Connection) ->
     complete_fold(db, record(fold=2, test_metrics=[]), T1)
     finish_run(db, "run-a", T1)
     assert db.execute("SELECT finished_at FROM runs").fetchone() == (T1,)
+
+
+def test_run_manifest_round_trips(db: sqlite3.Connection) -> None:
+    assert run_manifest(db, "run-a") == MANIFEST
+    finish_run(db, "run-a", T1)
+    assert run_manifest(db, "run-a") == replace(MANIFEST, finished_at=T1)
+    with pytest.raises(KeyError, match="run-z"):
+        run_manifest(db, "run-z")

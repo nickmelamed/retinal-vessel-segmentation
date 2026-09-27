@@ -224,6 +224,58 @@ def insert_run(conn: sqlite3.Connection, manifest: RunManifest) -> None:
         conn.execute(f"INSERT INTO runs ({cols}) VALUES ({marks})", values)
 
 
+ENV_COLUMNS = (
+    "python_version",
+    "tensorflow_version",
+    "cuda_version",
+    "device",
+    "gpu_type",
+    "compute_platform",
+)
+
+
+def run_manifest(conn: sqlite3.Connection, run_id: str) -> RunManifest:
+    """Rebuild a run's manifest from its ``runs`` row.
+
+    A resumed run may be on a fresh machine without the original
+    ``manifest.json``, so the database row is the source of truth for it.
+    An unknown run id raises ``KeyError``.
+    """
+    cols = (
+        "variant",
+        "config",
+        "config_hash",
+        "seed",
+        "git_commit",
+        "git_dirty",
+        "git_tag",
+        "data_hash",
+        "deterministic_ops",
+        "started_at",
+        "finished_at",
+        *ENV_COLUMNS,
+    )
+    row = conn.execute(f"SELECT {', '.join(cols)} FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+    if row is None:
+        raise KeyError(f"no run {run_id!r} in the database")
+    v = dict(zip(cols, row, strict=True))
+    return RunManifest(
+        run_id=run_id,
+        variant=v["variant"],
+        config=json.loads(v["config"]),
+        config_hash=v["config_hash"],
+        seed=v["seed"],
+        git_commit=v["git_commit"],
+        git_dirty=bool(v["git_dirty"]),
+        git_tag=v["git_tag"],
+        data_hash=v["data_hash"],
+        deterministic_ops=bool(v["deterministic_ops"]),
+        started_at=v["started_at"],
+        environment={c: v[c] for c in ENV_COLUMNS},
+        finished_at=v["finished_at"],
+    )
+
+
 def find_resumable_run(
     conn: sqlite3.Connection, variant: str, config_hash: str, git_commit: str, data_hash: str
 ) -> str | None:
