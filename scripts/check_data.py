@@ -13,6 +13,7 @@ the data is an error.
 
 import argparse
 import logging
+import sqlite3
 import sys
 from contextlib import closing
 from pathlib import Path
@@ -31,9 +32,8 @@ REPO = Path(__file__).resolve().parents[1]
 def log_stats(split: str, samples: list[Sample]) -> None:
     """Log image counts, abnormal images, and the pooled within-FOV vessel fraction."""
     abnormal = [s.image_id for s in samples if s.has_abnormality]
-    logger.info(
-        "DRIVE %s: %d images, abnormality notes on %s", split, len(samples), ", ".join(abnormal)
-    )
+    notes = f"abnormality notes on {', '.join(abnormal)}" if abnormal else "no abnormality notes"
+    logger.info("DRIVE %s: %d images, %s", split, len(samples), notes)
     counts = [
         (int((s.label & s.fov).sum()), int(s.fov.sum())) for s in samples if s.label is not None
     ]
@@ -94,6 +94,9 @@ def main(argv: list[str] | None = None) -> int:
             added = write_images(conn, records)
     except (LayoutError, ValueError) as err:
         logger.error("%s", err)
+        return 1
+    except sqlite3.IntegrityError as err:
+        logger.error("images table rejected a row in %s: %s", args.db, err)
         return 1
     for split, split_samples in samples.items():
         log_stats(split, split_samples)

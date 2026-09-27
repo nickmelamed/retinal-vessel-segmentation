@@ -2,6 +2,7 @@ import importlib.util
 import logging
 from collections.abc import Iterator
 from contextlib import closing
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
 
@@ -9,7 +10,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retinal_vessels.db import connect
+from retinal_vessels.data import Sample
+from retinal_vessels.datasets.drive import load_drive
+from retinal_vessels.db import ImageRecord, connect
 from tests.fixtures.synthetic_drive import fov_mask, training_paths
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check_data.py"
@@ -135,3 +138,34 @@ def test_checksum_failures_stop_before_the_database(
 def test_missing_drive_directory_fails(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     assert run(tmp_path) == 1
     assert "DRIVE directory not found" in caplog.text
+
+
+def test_split_without_abnormal_images_says_so(
+    synthetic_data_root: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO)
+    samples = [
+        replace(s, abnormality_note=None)
+        for s in load_drive(synthetic_data_root / "DRIVE", "training")
+    ]
+    check_data.log_stats("training", samples)
+    assert "DRIVE training: 20 images, no abnormality notes" in caplog.text
+
+
+def test_database_constraint_errors_are_one_logged_line(
+    synthetic_data_root: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A note-less abnormal row breaks a schema CHECK, which real data cannot
+    # reach, so the record builder is swapped for one that produces it.
+    real = check_data.image_record
+
+    def broken(sample: Sample) -> ImageRecord:
+        return replace(real(sample), has_abnormality=1, abnormality_note=None)
+
+    monkeypatch.setattr(check_data, "image_record", broken)
+    assert run(synthetic_data_root, "--init") == 1
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert "images table rejected a row" in errors[0].getMessage()
+    assert "CHECK constraint failed" in errors[0].getMessage()
+    assert errors[0].exc_info is None
