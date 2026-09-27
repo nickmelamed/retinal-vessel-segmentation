@@ -44,7 +44,7 @@ What exists now:
   template.
 - Docs: DECISIONS.md (D-001 to D-014), DATA.md, REPO_SETTINGS.md,
   CHANGELOG.md, CITATION.cff, the MIT LICENSE, and an interim README.
-- `make ci` passes: 62 tests at 97% coverage, with the 85% floor set in
+- `make ci` passes: 71 tests at 97% coverage, with the 85% floor set in
   `pyproject.toml`. Pytest treats `ResourceWarning` as an error.
 - `.claude/skills/commit/` holds the commit procedure as a skill.
 

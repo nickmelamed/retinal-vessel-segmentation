@@ -78,6 +78,12 @@ never fail and its zero-row result would show nothing.
 The precision metric is stored as `precision_score` because `PRECISION` is an
 SQL keyword.
 
+Every timestamp must equal its own `strftime('%Y-%m-%dT%H:%M:%SZ')` round
+trip, so all of them share one whole-second UTC format and compare correctly
+as text in query 09. An image with `has_abnormality = 1` must carry a
+non-empty `abnormality_note`, and a normal image must not have one, so the
+verbatim notes for images 25, 26, and 32 cannot be dropped on load.
+
 `runs.frozen_model_id` links an external evaluation to its row in
 `frozen_models`, and `runs.applied_threshold` records the threshold it
 actually used. Query 09 compares both with the frozen record, so a run that

@@ -128,6 +128,9 @@ def test_foreign_keys_are_enforced(conn: sqlite3.Connection) -> None:
         ("images", {**IMAGE, "dataset": "hrf"}),
         ("images", {**IMAGE, "fov_source": "guessed"}),
         ("images", {**IMAGE, "has_labels": 0}),
+        ("images", {**IMAGE, "has_abnormality": 1}),
+        ("images", {**IMAGE, "has_abnormality": 1, "abnormality_note": ""}),
+        ("images", {**IMAGE, "abnormality_note": "background diabetic retinopathy"}),
         ("runs", {**RUN, "git_dirty": 1, "is_reported": 1}),
         ("runs", {**RUN, "git_tag": "v0.1.0", "git_dirty": 1, "is_reported": 1}),
         ("runs", {**RUN, "is_reported": 1}),
@@ -219,3 +222,12 @@ def test_folds_count_from_one_and_zero_is_the_frozen_model(conn: sqlite3.Connect
 def test_timestamps_must_be_whole_second_utc(conn: sqlite3.Connection, started_at: str) -> None:
     with pytest.raises(sqlite3.IntegrityError, match="started_at"):
         insert(conn, "runs", {**RUN, "started_at": started_at})
+
+
+def test_an_abnormal_image_is_stored_with_its_note(conn: sqlite3.Connection) -> None:
+    note = "background diabetic retinopathy"
+    insert(
+        conn, "images", {**IMAGE, "image_id": "32", "has_abnormality": 1, "abnormality_note": note}
+    )
+    rows = conn.execute("SELECT image_id, abnormality_note FROM images").fetchall()
+    assert rows == [("32", note)]

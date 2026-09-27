@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS images (
     vessel_fraction_in_fov REAL CHECK (vessel_fraction_in_fov BETWEEN 0 AND 1),
     has_labels INTEGER NOT NULL CHECK (has_labels IN (0, 1)),
     PRIMARY KEY (dataset, image_id),
-    CHECK (has_labels = 1 OR vessel_fraction_in_fov IS NULL)
+    CHECK (has_labels = 1 OR vessel_fraction_in_fov IS NULL),
+    -- An abnormal image always carries its note, and a normal one never does.
+    CHECK ((has_abnormality = 1) = (abnormality_note IS NOT NULL AND abnormality_note != ''))
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS frozen_models (
