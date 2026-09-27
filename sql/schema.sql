@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS runs (
     seed INTEGER NOT NULL,
     git_commit TEXT NOT NULL,
     git_dirty INTEGER NOT NULL CHECK (git_dirty IN (0, 1)),
+    -- The tag on the commit, NULL when HEAD is untagged.
+    git_tag TEXT,
     data_hash TEXT NOT NULL,
     python_version TEXT NOT NULL,
     tensorflow_version TEXT NOT NULL,
@@ -68,8 +70,8 @@ CREATE TABLE IF NOT EXISTS runs (
     started_at TEXT NOT NULL,
     finished_at TEXT,
     is_reported INTEGER NOT NULL DEFAULT 0 CHECK (is_reported IN (0, 1)),
-    -- Only clean-tree runs can back a reported number.
-    CHECK (NOT (is_reported = 1 AND git_dirty = 1))
+    -- Only runs from a clean, tagged commit can back a reported number.
+    CHECK (is_reported = 0 OR (git_dirty = 0 AND git_tag IS NOT NULL))
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS fold_assignments (

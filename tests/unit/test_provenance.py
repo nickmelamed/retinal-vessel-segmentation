@@ -173,6 +173,16 @@ def test_git_state_tracks_commit_and_dirty_flag(repo: Path) -> None:
     assert git_state(repo).dirty is True
 
 
+def test_git_state_reports_the_tag_on_head(repo: Path) -> None:
+    assert git_state(repo).tag is None
+    _git(repo, "tag", "-a", "v0.1.0", "-m", "release")
+    assert git_state(repo).tag == "v0.1.0"
+    (repo / "b.txt").write_text("b\n")
+    _git(repo, "add", "b.txt")
+    _git(repo, "commit", "-q", "-m", "after the tag")
+    assert git_state(repo).tag is None
+
+
 def test_git_state_counts_untracked_files_as_dirty(repo: Path) -> None:
     (repo / "new.py").write_text("")
     assert git_state(repo).dirty is True
@@ -214,6 +224,7 @@ def test_manifest_captures_commit_dirty_flag_and_data_checksum(
     saved = json.loads(path.read_text())
     assert saved["git_commit"] == head
     assert saved["git_dirty"] is False
+    assert saved["git_tag"] is None
     assert saved["data_hash"] == data_hash(checksums)
     assert saved["started_at"] == "2026-09-26T12:00:00Z"
     assert saved["finished_at"] is None

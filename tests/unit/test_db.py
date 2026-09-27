@@ -127,6 +127,8 @@ def test_foreign_keys_are_enforced(conn: sqlite3.Connection) -> None:
         ("images", {**IMAGE, "fov_source": "guessed"}),
         ("images", {**IMAGE, "has_labels": 0}),
         ("runs", {**RUN, "git_dirty": 1, "is_reported": 1}),
+        ("runs", {**RUN, "git_tag": "v0.1.0", "git_dirty": 1, "is_reported": 1}),
+        ("runs", {**RUN, "is_reported": 1}),
         ("runs", {**RUN, "seed": "zero"}),
         ("runs", {**RUN, "applied_threshold": 1.5}),
     ],
@@ -181,3 +183,8 @@ def test_connect_creates_the_results_directory(tmp_path: Path) -> None:
     with closing(connect(path)):
         pass
     assert path.is_file()
+
+
+def test_a_clean_tagged_run_can_be_reported(conn: sqlite3.Connection) -> None:
+    insert(conn, "runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1})
+    assert conn.execute("SELECT is_reported FROM runs").fetchall() == [(1,)]

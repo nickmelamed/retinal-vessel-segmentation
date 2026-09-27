@@ -65,8 +65,10 @@ the Claude GitHub App does not need to be installed.
 
 Tables are `STRICT`, so SQLite enforces column types. Enumerations and metric
 ranges are `CHECK` constraints, and foreign keys tie folds and metrics to runs
-and images. A run cannot be both reported and from a dirty tree, and a fold
-cannot be complete without its checkpoint hash.
+and images. A run can be reported only if it came from a clean tree and a
+tagged commit (rule 7), so `runs.git_tag` records the tag on HEAD, and the
+manifest carries it too. A fold cannot be complete without its checkpoint
+hash.
 
 `fold_assignments` rejects exact duplicate rows but allows an image to hold
 two roles in one fold, or to be a test image in two folds. Those are the leaks

@@ -153,6 +153,7 @@ def check_or_write_checksums(
 class GitState:
     commit: str
     dirty: bool
+    tag: str | None
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -163,13 +164,21 @@ def _git(repo: Path, *args: str) -> str:
 
 
 def git_state(repo: Path) -> GitState:
-    """Return the HEAD commit and whether the tree has uncommitted or untracked changes.
+    """Return the HEAD commit, whether the tree is dirty, and the tag on HEAD if any.
 
     Ignored files (data, results, checkpoints) do not make the tree dirty.
+    Reported runs need both a clean tree and a tag.
     """
     commit = _git(repo, "rev-parse", "HEAD").strip()
     dirty = bool(_git(repo, "status", "--porcelain").strip())
-    return GitState(commit=commit, dirty=dirty)
+    described = subprocess.run(
+        ["git", "describe", "--tags", "--exact-match", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    tag = described.stdout.strip() if described.returncode == 0 else None
+    return GitState(commit=commit, dirty=dirty, tag=tag)
 
 
 def compute_platform(environ: Mapping[str, str]) -> str:
@@ -227,6 +236,7 @@ class RunManifest:
     seed: int
     git_commit: str
     git_dirty: bool
+    git_tag: str | None
     data_hash: str
     deterministic_ops: bool
     started_at: str
@@ -256,8 +266,9 @@ def build_manifest(
     if not data.ok:
         raise ValueError(f"data failed verification: {data.problems()[:3]}")
     state = git_state(repo)
-    if state.dirty:
-        logger.warning("Working tree is dirty. Run %s cannot be reported.", run_id)
+    if state.dirty or state.tag is None:
+        reason = "the working tree is dirty" if state.dirty else "HEAD has no tag"
+        logger.warning("Run %s cannot be reported because %s.", run_id, reason)
     return RunManifest(
         run_id=run_id,
         variant=variant,
@@ -266,6 +277,7 @@ def build_manifest(
         seed=seed,
         git_commit=state.commit,
         git_dirty=state.dirty,
+        git_tag=state.tag,
         data_hash=data_hash(data.checked),
         deterministic_ops=deterministic_ops,
         started_at=utc_timestamp(started_at),
