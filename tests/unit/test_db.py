@@ -190,9 +190,35 @@ def test_connect_creates_the_results_directory(tmp_path: Path) -> None:
     assert path.is_file()
 
 
-def test_a_clean_tagged_run_can_be_reported(conn: sqlite3.Connection) -> None:
-    insert(conn, "runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1})
+def test_a_finished_clean_tagged_run_can_be_reported(conn: sqlite3.Connection) -> None:
+    finished = {"git_tag": "v0.1.0", "finished_at": "2026-09-26T01:00:00Z"}
+    insert(conn, "runs", {**RUN, **finished, "is_reported": 1})
     assert conn.execute("SELECT is_reported FROM runs").fetchall() == [(1,)]
+
+
+def test_an_unfinished_run_cannot_be_reported(conn: sqlite3.Connection) -> None:
+    with pytest.raises(sqlite3.IntegrityError, match="finished_at IS NOT NULL"):
+        insert(conn, "runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1})
+
+
+def test_external_runs_record_model_and_threshold_together(conn: sqlite3.Connection) -> None:
+    insert(conn, "runs", RUN)
+    frozen = {
+        "model_id": "m1",
+        "run_id": "r1",
+        "checkpoint_sha256": "c",
+        "threshold": 0.5,
+        "n_epochs": 30,
+        "git_commit": "abc",
+        "frozen_at": "2026-09-26T02:00:00Z",
+    }
+    insert(conn, "frozen_models", frozen)
+    pairing = "frozen_model_id IS NULL"
+    with pytest.raises(sqlite3.IntegrityError, match=pairing):
+        insert(conn, "runs", {**RUN, "run_id": "e1", "frozen_model_id": "m1"})
+    with pytest.raises(sqlite3.IntegrityError, match=pairing):
+        insert(conn, "runs", {**RUN, "run_id": "e2", "applied_threshold": 0.5})
+    insert(conn, "runs", {**RUN, "run_id": "e3", "frozen_model_id": "m1", "applied_threshold": 0.5})
 
 
 def test_folds_count_from_one_and_zero_is_the_frozen_model(conn: sqlite3.Connection) -> None:
