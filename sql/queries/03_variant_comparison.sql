@@ -4,8 +4,10 @@
 -- One row per image for every pair of a finished baseline run and a
 -- finished run of another variant. Each delta is the other variant minus
 -- the baseline, so a positive Dice delta means the other variant did
--- better on that image. The folds are shared across variants (D-019), so
--- both runs held the image out.
+-- better on that image. Folds are meant to be shared across variants
+-- (D-019), but a run from an older config could differ, so an image is paired
+-- only when both runs held it out in the same fold and trained on the same
+-- data.
 
 SELECT
     rb.run_id AS baseline_run_id,
@@ -29,6 +31,7 @@ INNER JOIN per_image_metrics AS o
         b.dataset = o.dataset
         AND b.image_id = o.image_id
         AND b.prediction_mode = o.prediction_mode
+        AND b.fold = o.fold
 INNER JOIN runs AS ro ON o.run_id = ro.run_id
 WHERE
     b.dataset = 'drive'
@@ -39,4 +42,5 @@ WHERE
     AND ro.variant != 'baseline'
     AND rb.finished_at IS NOT NULL
     AND ro.finished_at IS NOT NULL
+    AND rb.data_hash = ro.data_hash
 ORDER BY ro.variant, rb.run_id, ro.run_id, b.image_id;

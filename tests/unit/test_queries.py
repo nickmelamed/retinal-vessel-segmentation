@@ -201,3 +201,35 @@ def test_threshold_log_covers_every_run(db: sqlite3.Connection) -> None:
     ]
     assert {(r["best_epoch"], r["n_epochs"]) for r in rows} == {(2, 4)}
     assert {(r["selection_rule"], r["val_dice"]) for r in rows} == {("rule", 0.8)}
+
+
+def add_finished_run(
+    conn: sqlite3.Connection, run_id: str, folds: dict[int, dict[str, float]], data_hash: str
+) -> None:
+    insert_run(conn, replace(MANIFEST, run_id=run_id, variant="dice_only", data_hash=data_hash))
+    for fold, images in folds.items():
+        start_fold(conn, run_id, fold, T0)
+        record = FoldRecord(
+            run_id=run_id,
+            fold=fold,
+            checkpoint_sha256="ab" * 32,
+            threshold=THRESHOLDS[fold],
+            selection_rule="rule",
+            val_dice=0.8,
+            history=history(0.8),
+            test_metrics=[ImageMetrics("drive", i, metrics(d)) for i, d in images.items()],
+        )
+        complete_fold(conn, record, T1)
+    finish_run(conn, run_id, T1)
+
+
+def test_variant_comparison_pairs_only_matching_folds_and_data(db: sqlite3.Connection) -> None:
+    # "shifted" held image 21 out in fold 2, where the baseline held it out in
+    # fold 1. "elsewhere" trained on other data. Neither pairing is matched.
+    add_finished_run(db, "shifted", {1: {"22": 0.5}, 2: {"21": 0.5, "23": 0.5}}, "data")
+    add_finished_run(db, "elsewhere", DICE["ablate"], "other data")
+    rows = query(db, "03_variant_comparison")
+    pairs = {(r["other_run_id"], r["image_id"]) for r in rows}
+    assert {i for run, i in pairs if run == "shifted"} == {"22", "23"}
+    assert not {i for run, i in pairs if run == "elsewhere"}
+    assert {i for run, i in pairs if run == "ablate"} == {"21", "22", "23"}
