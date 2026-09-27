@@ -392,19 +392,25 @@ def test_main_refuses_a_clean_run_from_another_commit(
     assert all(row[1] is None for row in finished.rows())
 
 
-@pytest.mark.parametrize("bad", [np.nan, np.inf, -0.5])
+@pytest.mark.parametrize("bad", [np.nan, np.inf, -0.5, 1.5])
 def test_refuses_a_probability_that_is_not_in_the_unit_interval(
     finished: Finished, bad: float
 ) -> None:
     # A NaN would reach SQLite as NULL and pass the schema's CHECK, so the
-    # image would silently lose its metrics. The bad value goes on a
-    # background pixel below the threshold, where the recomputed confusion
-    # metrics stay the same, so only the range check can catch it.
+    # image would silently lose its metrics. The bad value goes where it
+    # leaves the recomputed confusion metrics the same, so only the range
+    # check can catch it: below the threshold on background, or at or above
+    # it on a vessel.
     fold = finished.folds[0]
     probs = {i: finished.probabilities[i].copy() for i in fold.test}
     sample = finished.sample(fold.test[0])
     assert sample.label is not None
-    rows, cols = np.nonzero(sample.fov & ~sample.label & (probs[sample.image_id] < THRESHOLD))
+    prob = probs[sample.image_id]
+    if bad > 1:
+        where = sample.fov & sample.label & (prob >= THRESHOLD)
+    else:
+        where = sample.fov & ~sample.label & (prob < THRESHOLD)
+    rows, cols = np.nonzero(where)
     probs[sample.image_id][rows[0], cols[0]] = bad
     save_predictions(finished.dirs, RUN_ID, fold.number, probs)
     assert_nothing_written(finished, r"outside \[0, 1\]")
