@@ -181,3 +181,41 @@ owner chose to replace the paraphrase with the text of
 https://drive.grand-challenge.org/ as retrieved on 2026-09-26. The loader
 stores the same strings. If the site's wording changes, this entry and the
 loader change together.
+
+## D-016 Abnormal images go to different test folds (2026-09-26)
+
+This refines SPEC section 5, with the owner's approval. `make_folds` puts
+DRIVE's abnormal training images, 25, 26, and 32, in three different test
+folds, and shuffles the other 17 into the remaining test slots with the same
+seed. With a plain shuffle, two or three of them could share a fold, and that
+fold's threshold and scores would then be driven by pathology. Every image is
+still a test image exactly once, each fold still has 4 test, 2 validation,
+and 14 training images, and the split is still by whole image. Validation
+images are drawn at random from each fold's 16 non-test images.
+
+The folds depend only on the set of image ids and the seed, never on their
+order, so every variant run with the same seed gets the same assignment
+(section 7).
+
+## D-017 Phase 1 data conventions (2026-09-26)
+
+This completes the config part of D-009. `retinal_vessels.config` validates
+each YAML file with pydantic in strict mode. Every key is required, since a
+default would hide a missing setting, and unknown keys are errors. Strict
+types mean `true` is not a number and `1` is not a boolean. The YAML is
+validated through JSON so that lists can fill tuple fields.
+
+DRIVE image ids are the two-digit strings from the file names ("03", "21").
+Training and test ids do not overlap, so `(dataset, image_id)` is unique.
+
+When the green channel is switched off, preprocessing converts the image to
+grayscale, since CLAHE needs a single channel. Pixels outside the FOV are
+set to 0 after every step, so the black border never enters the statistics.
+
+Patch batches carry the FOV patch as a third element, so the phase 2 loss
+can ignore pixels outside the FOV. Every random choice in patch sampling is
+drawn up front from one seeded NumPy generator, which keeps the `tf.data`
+pipeline deterministic even with parallel maps.
+
+The within-FOV vessel fraction counts labeled pixels inside the FOV only.
+The real DRIVE labels mark a few pixels outside it.
