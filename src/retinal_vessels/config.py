@@ -22,8 +22,11 @@ class _Section(BaseModel):
 
 
 class FoldsConfig(_Section):
-    """Cross-validation split sizes (SPEC section 5)."""
+    """Cross-validation split sizes and the seed that draws the split (SPEC section 5)."""
 
+    # Kept apart from the top-level seed so that every variant, and every
+    # rerun with a new training seed, uses the same folds (D-019).
+    seed: int = Field(ge=0)
     n_folds: int = Field(ge=2)
     n_val: int = Field(ge=1)
 

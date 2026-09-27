@@ -24,3 +24,4 @@ All notable changes to this project are documented here. The format follows
 - Preprocessing (green channel, CLAHE, scaling, FOV standardization) and seeded `tf.data` patch sampling.
 - `make check-data` writes the `images` table and logs the within-FOV vessel fraction.
 - `make mutate` for mutation testing of the fold code.
+- `folds.seed` draws the cross-validation split separately from the training seed.

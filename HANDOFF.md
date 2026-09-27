@@ -8,17 +8,19 @@ phase 1 merges.
 
 ## Where things stand (2026-09-26)
 
-Phase 1 is finished on `phase/1-data` and ticked in PROGRESS.md. It is not
-pushed yet, and the pull request (merge commit, not squash) waits for the
-owner. Check `gh pr list`, and cut `phase/2-model` from `main` once it has
-merged. `make ci` passes on the branch: 220 tests at 97.83% coverage.
+Phase 1 is merged into `main` (PR #3, merge commit `0649317`) and ticked in
+PROGRESS.md. A follow-up branch, `fix/folds-seed`, gives the folds their own
+seed (D-019). Check `gh pr list`, and cut `phase/2-model` from `main` once
+it has merged. CI passes on `main`.
 
 What phase 1 added:
 
 - `config.py` loads `configs/baseline.yaml` and `configs/smoke.yaml` into
   strict pydantic models. Every key is required and unknown keys are errors
   (D-017). The sections so far are `variant`, `seed`, `folds`, `preprocess`,
-  and `patches`. Phase 2 adds model and training sections to both files and
+  and `patches`. The top-level `seed` drives patch sampling and, from phase
+  2, training. The folds use `folds.seed`, which a test requires to match
+  across every config (D-019). Phase 2 adds model and training sections to both files and
   to `Config`.
 - `data.py` (protected) holds `Sample`, which validates itself, and
   `make_folds`. Folds are 14/2/4, numbered 1 to 5, depend only on the id set
@@ -68,6 +70,11 @@ runs), and 17 (run manifest) give the details.
   A fold is marked complete in `fold_status` only after its checkpoint,
   threshold, metrics, and history are all written. A restart skips complete
   folds and retrains a `running` one from scratch.
+- `runs.seed` holds the top-level (training) seed. The fold seed is only in
+  `runs.config`, so anything pairing runs by their folds joins on
+  `fold_assignments` (D-019). `final.yaml` will have no folds, and the
+  shared-fold-seed test in `test_config.py` already leaves it and
+  `external.yaml` out.
 - A `runs` row and `results/<run_id>/manifest.json` for every run, through
   `provenance.build_manifest` and `Config.as_json()` with
   `provenance.config_hash`.
@@ -90,14 +97,6 @@ runs), and 17 (run manifest) give the details.
 - What counts as an epoch: `patches.per_epoch` patches with seed
   `seed + epoch` is the simplest reading. Confirm it, and the patience for
   early stopping.
-- Folds are seeded with the top-level `seed`, which also seeds patches and
-  training. Section 7 needs every ablation to share one fold assignment, and
-  today that holds only because each variant YAML copies the same seed.
-  Changing the training seed, for example to measure rerun variance, would
-  reshuffle the split. The Claude review on PR #3 suggested a separate
-  `folds.seed`, or a check that runs of the same CV agree on
-  `fold_assignments`. This touches section 5, so it is the owner's call
-  before phase 2 writes real runs.
 - Confirm that the VS Code Colab extension's runtimes set
   `COLAB_RELEASE_TAG`, which `compute_platform` relies on. Colab installs
   with `uv sync --locked` (D-011). Reported runs use a T4 (D-013).

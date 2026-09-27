@@ -243,3 +243,28 @@ or the path given with `--db`. Repeating the command adds nothing. A stored
 row that no longer matches the data is an error, like a checksum mismatch
 (D-004). The pooled fraction is only logged, and it goes into documents
 through the tables generated from the database.
+
+## D-019 The folds have their own seed (2026-09-27)
+
+This amends D-016. The folds used to be drawn with the top-level `seed`,
+which also drives patch sampling and, from phase 2, training. SPEC section 7
+needs every variant to use the same fold assignment so that R can pair
+per-image results, and that held only because every config copied the same
+seed. Any variant given another seed would have silently changed its folds.
+
+The owner chose a separate `folds.seed` over a check at training time that
+compares a new run's folds with the baseline's. The check could only fire
+once a baseline run existed, and only at training time, possibly on Colab.
+A test instead requires every cross-validation
+config in `configs/` to share one `folds.seed` and the same fold sizes, so a
+drifting config fails `make ci` before any run exists. `final.yaml` and
+`external.yaml`, when they arrive, are outside that rule, since the frozen
+model trains on all 20 images and external validation has no folds.
+
+`runs.seed` records the top-level seed, not the fold seed, which lives in
+`runs.config`. Anything that pairs runs by their folds, like the section 7
+comparisons in R, must join on `fold_assignments`, not on `runs.seed`.
+
+`folds.seed` is 20260926, the value the baseline already used, so the
+baseline's fold assignment is unchanged. The smoke config now uses the
+baseline's folds too, and keeps its own top-level seed.

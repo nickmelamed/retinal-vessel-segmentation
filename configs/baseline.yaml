@@ -1,9 +1,11 @@
 # Baseline variant (SPEC section 7). Each setting is required, see
 # src/retinal_vessels/config.py.
 variant: baseline
+# Patch sampling and training. The folds have their own seed below.
 seed: 20260926
 
 folds:
+  seed: 20260926
   n_folds: 5
   n_val: 2
 
