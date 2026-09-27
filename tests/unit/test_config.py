@@ -59,7 +59,19 @@ def test_rejects_unknown_nested_key(tmp_path: Path, baseline: dict[str, Any]) ->
 
 
 @pytest.mark.parametrize(
-    ("section", "key"), [(None, "seed"), ("folds", "seed"), ("patches", "size")]
+    ("section", "key"),
+    [
+        (None, "seed"),
+        ("folds", "seed"),
+        ("patches", "size"),
+        (None, "model"),
+        ("model", "depth"),
+        ("loss", "name"),
+        ("training", "patience"),
+        ("training", "deterministic_ops"),
+        ("inference", "stride"),
+        ("threshold", "divisions"),
+    ],
 )
 def test_rejects_missing_key(
     tmp_path: Path, baseline: dict[str, Any], section: str | None, key: str
@@ -83,6 +95,15 @@ def test_rejects_missing_key(
         ("patches", "flip_probability", 1.5),
         ("patches", "flip_probability", -0.1),
         ("patches", "flip_probability", True),
+        ("model", "depth", 0),
+        ("model", "dropout", 1.0),
+        ("model", "batch_norm", "yes"),
+        ("loss", "name", "focal"),
+        ("loss", "smooth", 0),
+        ("training", "max_epochs", 0),
+        ("training", "learning_rate", 0),
+        ("inference", "stride", 256),
+        ("threshold", "divisions", 1),
     ],
 )
 def test_rejects_bad_value(
@@ -91,6 +112,28 @@ def test_rejects_bad_value(
     baseline[section][key] = value
     with pytest.raises(ConfigError, match=key):
         load_config(write(tmp_path, baseline))
+
+
+@pytest.mark.parametrize(("section", "key"), [("patches", "size"), ("inference", "window")])
+def test_rejects_size_the_unet_cannot_halve(
+    tmp_path: Path, baseline: dict[str, Any], section: str, key: str
+) -> None:
+    # Depth 4 halves four times, so sizes must divide by 16. 72 is even but not.
+    baseline[section][key] = 72
+    if key == "window":
+        baseline["inference"]["stride"] = 72
+    with pytest.raises(ConfigError, match=rf"{section}\.{key}=72"):
+        load_config(write(tmp_path, baseline))
+
+
+def test_accepts_deeper_model_only_with_larger_sizes(
+    tmp_path: Path, baseline: dict[str, Any]
+) -> None:
+    baseline["model"]["depth"] = 7
+    with pytest.raises(ConfigError, match="2\\*\\*model.depth=128"):
+        load_config(write(tmp_path, baseline))
+    baseline["patches"]["size"] = 128
+    assert load_config(write(tmp_path, baseline)).model.depth == 7
 
 
 def test_rejects_negative_seed(tmp_path: Path, baseline: dict[str, Any]) -> None:
