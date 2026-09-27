@@ -312,7 +312,10 @@ the same command then starts a new one. Resuming is
 refused if the stored fold assignments differ from the computed ones, or if
 the environment differs (Python, TensorFlow or CUDA version, device, GPU
 type, or platform), since reported comparisons must not mix hardware
-(section 16). A resumed run rebuilds its manifest from the `runs` row,
+(section 16). Resuming is also refused when a complete fold's
+checkpoint is missing or does not match its stored SHA-256, or when any of
+its prediction files is missing, since the run would otherwise finish
+without an out-of-fold prediction for every image. A resumed run rebuilds its manifest from the `runs` row,
 because a fresh Colab machine may not have the original `manifest.json`.
 
 A fold's threshold, test-image metrics, and history are written together

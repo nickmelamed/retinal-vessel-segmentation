@@ -226,6 +226,36 @@ def _check_resumable(
         )
 
 
+def _check_complete_outputs(
+    conn: sqlite3.Connection, run_id: str, folds: Sequence[Fold], dirs: OutputDirs
+) -> None:
+    # A resumed run on a new machine skips its complete folds, so their
+    # checkpoints and predictions must already be here, or the run would
+    # finish without an out-of-fold prediction for every image.
+    stored = dict(
+        conn.execute(
+            "SELECT fold, checkpoint_sha256 FROM fold_status "
+            "WHERE run_id = ? AND status = 'complete'",
+            (run_id,),
+        ).fetchall()
+    )
+    for fold in folds:
+        if fold.number not in stored:
+            continue
+        checkpoint = dirs.checkpoint(run_id, fold.number)
+        if not checkpoint.is_file() or sha256_file(checkpoint) != stored[fold.number]:
+            raise ResumeError(
+                f"fold {fold.number} checkpoint {checkpoint} is missing or does not match "
+                "the database. Restore the run's models/ and results/ before resuming."
+            )
+        missing = [i for i in fold.test if not (dirs.predictions(run_id) / f"{i}.npy").is_file()]
+        if missing:
+            raise ResumeError(
+                f"fold {fold.number} prediction files are missing for images {missing} in "
+                f"{dirs.predictions(run_id)}. Restore the run's results/ before resuming."
+            )
+
+
 def open_run(
     conn: sqlite3.Connection,
     config: Config,
@@ -301,6 +331,7 @@ def run_cv(
     run_id = open_run(
         conn, config, folds, report, dirs, repo, env if env is not None else environment(), new
     )
+    _check_complete_outputs(conn, run_id, folds, dirs)
     data = prepare(samples, config)
     for fold in folds:
         if fold_statuses(conn, run_id).get(fold.number) == "complete":

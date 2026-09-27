@@ -232,6 +232,7 @@ def test_a_fold_left_running_is_retrained(
             "completed_at = NULL WHERE fold = 4"
         )
     shutil.copytree(reference.dirs.results, tmp_path / "results")
+    shutil.copytree(reference.dirs.models, tmp_path / "models")
     resumed = run(setup, tmp_path)
     assert resumed.run_id == reference.run_id
     assert spy == [4]
@@ -330,3 +331,44 @@ def test_a_dirty_tree_never_resumes(
             1,
         )
     assert "dirty" in caplog.text
+
+
+def restored_copy(reference: Outcome, where: Path) -> None:
+    unfinished_copy(reference, where)
+    shutil.copytree(reference.dirs.results, where / "results")
+    shutil.copytree(reference.dirs.models, where / "models")
+
+
+def test_a_missing_prediction_refuses_to_resume(
+    setup: Setup, reference: Outcome, tmp_path: Path, spy: list[int]
+) -> None:
+    # Restoring only the database on a new machine must not let a run finish
+    # with out-of-fold predictions missing for its complete folds.
+    restored_copy(reference, tmp_path)
+    next(iter((tmp_path / "results" / reference.run_id / "predictions").glob("*.npy"))).unlink()
+    with pytest.raises(train.ResumeError, match="prediction"):
+        run(setup, tmp_path)
+    assert spy == []
+
+
+@pytest.mark.parametrize("change", ["delete", "alter"])
+def test_a_missing_or_changed_checkpoint_refuses_to_resume(
+    setup: Setup, reference: Outcome, tmp_path: Path, spy: list[int], change: str
+) -> None:
+    restored_copy(reference, tmp_path)
+    checkpoint = tmp_path / "models" / reference.run_id / "fold_2.keras"
+    if change == "delete":
+        checkpoint.unlink()
+    else:
+        checkpoint.write_bytes(b"other weights")
+    with pytest.raises(train.ResumeError, match="fold 2 checkpoint"):
+        run(setup, tmp_path)
+    assert spy == []
+
+
+def test_a_fully_restored_run_resumes_with_nothing_to_train(
+    setup: Setup, reference: Outcome, tmp_path: Path, spy: list[int]
+) -> None:
+    restored_copy(reference, tmp_path)
+    assert run(setup, tmp_path).run_id == reference.run_id
+    assert spy == []
