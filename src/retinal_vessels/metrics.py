@@ -142,8 +142,9 @@ def average_precision(probability: np.ndarray, label: np.ndarray, fov: np.ndarra
     vessel, background = _counts_per_score(p, t)
     tp = np.cumsum(vessel[::-1])
     fp = np.cumsum(background[::-1])
-    recall_gain = vessel[::-1] / n_vessel
-    return float(np.sum(recall_gain * tp / (tp + fp)))
+    # Dividing by n_vessel once, after the sum, keeps the result at most 1.
+    # Summing the recall gains one by one can round to just above it.
+    return float(np.sum(vessel[::-1] * (tp / (tp + fp))) / n_vessel)
 
 
 def brier(probability: np.ndarray, label: np.ndarray, fov: np.ndarray) -> float:

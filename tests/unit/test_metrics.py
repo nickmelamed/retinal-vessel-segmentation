@@ -384,3 +384,13 @@ def test_width_sensitivity_of_an_empty_bin_is_none() -> None:
     line_only[6:] = False
     only_thin = width_sensitivity(line_only, line_only, FULL, edge=1.0)
     assert (only_thin.thin, only_thin.thick) == (1.0, None)
+
+
+def test_average_precision_never_rounds_above_one() -> None:
+    # Summing recall gains 6/72 + 65/72 + 1/72 one by one gives
+    # 1.0000000000000002, which the database's CHECK would reject.
+    prob = np.full((8, 9), 0.5, dtype=np.float32)
+    prob[0, 0] = 0
+    prob[0, 1:7] = 1
+    everywhere = np.ones((8, 9), dtype=bool)
+    assert average_precision(prob, everywhere, everywhere) == 1.0
