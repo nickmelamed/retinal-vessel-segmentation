@@ -161,9 +161,9 @@ def train_fold(
 ) -> FoldRecord:
     """Train one fold, predict its test images, and return what the fold writes.
 
-    Saves the best checkpoint by validation Dice, the test-image
-    probabilities, and their SHA-256 values to disk. The database is left to the caller, so a crash
-    here leaves the fold ``running``.
+    Saves the best checkpoint by validation Dice, the test-image probabilities,
+    and their SHA-256 values to disk. The database is left to the caller, so a
+    crash here leaves the fold ``running``.
     """
     import keras
 

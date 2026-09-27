@@ -29,7 +29,7 @@ train:  ## Resumable 5-fold CV for one config (make train VARIANT=baseline)
 evaluate:  ## Fill AUCs, Brier, and thin/thick sensitivity from saved predictions (RUN=<run_id>, default latest finished)
 	uv run python -m retinal_vessels.evaluate $(if $(RUN),--run-id $(RUN),)
 
-verify-checkpoints:  ## Check downloaded checkpoints against the database (RUN=<run_id>, default latest; UNFINISHED=1 mid-run)
+verify-checkpoints:  ## Check downloaded checkpoints against the database (RUN=<run_id>, default latest, UNFINISHED=1 to check a run still training)
 	uv run python scripts/verify_checkpoints.py $(if $(RUN),--run-id $(RUN),) $(if $(UNFINISHED),--allow-unfinished,)
 
 lint:  ## ruff, ruff format --check, mypy, sqlfluff

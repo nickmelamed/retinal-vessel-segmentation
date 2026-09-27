@@ -345,14 +345,14 @@ fills the AUC, Brier, and thin and thick sensitivity columns of the existing
 those rows, so the schema does not change. Rerunning it gives the same
 values.
 
-The thin and thick bins follow rule 3. Each fold sets its own edge from the
-ground truth of its 16 training and validation images: the
-`evaluation.thin_quantile` quantile (0.5) of skeleton radius. A skeleton
-pixel is thin when its radius is at most the edge. The fold's held-out images
-are scored with that edge. Each fold's edge and bin pixel counts are saved
-with the results. The skeleton comes from scikit-image and the radius from
-OpenCV's exact Euclidean distance transform. Both are computed on the label
-inside the FOV, so pixels outside the FOV never change a score.
+The thin and thick bins follow rule 3. Each fold sets its own edge at the
+`evaluation.thin_quantile` quantile (0.5) of skeleton radius over the ground
+truth of its 16 training and validation images. A skeleton pixel is thin when
+its radius is at most the edge. The fold's held-out images are scored with
+that edge. Each fold's edge and bin pixel counts are saved with the results.
+The skeleton comes from scikit-image and the radius from OpenCV's exact
+Euclidean distance transform. Both are computed on the label inside the FOV,
+so pixels outside the FOV never change a score.
 
 The reliability diagram pools every out-of-fold FOV pixel into
 `evaluation.reliability_bins` (10) equal-width bins and keeps each bin's pixel
@@ -364,9 +364,9 @@ Each fold writes `predictions/fold_<k>.sha256` next to its probability files.
 Evaluation checks those hashes, then recomputes the confusion metrics at the
 fold's stored threshold and requires them to equal the stored row exactly. A
 missing, stale, or swapped file therefore stops evaluation. The owner chose
-this over a checksum column, which would have needed a schema change. It
-also requires the data checksums to match the run's `data_hash`, so the
-labels are the ones training used.
+this over a checksum column, which would have needed a schema change.
+Evaluation also requires the data checksums to match the run's `data_hash`, so
+the labels are the ones training used.
 
 Evaluation first rewrites `manifest.json` from the `runs` row. A crash
 between marking the run finished and writing the manifest would otherwise

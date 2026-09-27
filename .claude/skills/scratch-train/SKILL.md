@@ -25,5 +25,5 @@ only by reported runs on Colab (`/colab-run`).
 5. Run `uv run python scripts/verify_checkpoints.py --db <dir>/experiments.db
    --models-dir <dir>/models`.
 6. Report the exit code of each step and whether verification passed. Quote
-   no Dice or other metric as a result: these runs use a tiny model on
+   no Dice or other metric as a result, since these runs use a tiny model on
    synthetic data and are not reported (rule 2).

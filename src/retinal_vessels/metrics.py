@@ -236,8 +236,8 @@ def thin_edge(labels: Sequence[np.ndarray], fovs: Sequence[np.ndarray], quantile
     """Return the ``quantile`` of skeleton radius pooled over ``labels``.
 
     This sets a fold's thin/thick edge from its training and validation
-    labels (D-021). The result is an observed radius, not an interpolation
-    between two, so it is the edge that bins those pixels.
+    labels (D-021). The ``inverted_cdf`` method returns an observed radius, so
+    the edge falls exactly on a value the bins contain.
     """
     if not 0 < quantile < 1:
         raise ValueError(f"quantile must lie in (0, 1), got {quantile}")
