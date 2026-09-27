@@ -10,8 +10,11 @@ thin/thick edge comes from its own training and validation labels (D-021).
 
 Before computing anything, it checks that the probability files match the
 hashes each fold recorded, that the data matches the run's data hash, and
-that each image's recomputed confusion metrics equal the stored ones.
-Rerunning it gives the same values.
+that each image's recomputed confusion metrics equal the stored ones. A run
+trained from a clean tree is evaluated only from a clean tree at the same
+commit, so its reported numbers come from the code that trained it (rule 7).
+The evaluating commit is recorded either way. Rerunning it gives the same
+values.
 """
 
 import argparse
@@ -55,8 +58,11 @@ from retinal_vessels.metrics import (
 )
 from retinal_vessels.provenance import (
     ChecksumReport,
+    GitState,
+    RunManifest,
     check_or_write_checksums,
     data_hash,
+    git_state,
     read_checksums,
     sha256_file,
     write_manifest,
@@ -89,12 +95,15 @@ class RunEvaluation:
     """What ``evaluation.json`` holds besides the per-image rows in the database."""
 
     run_id: str
+    # The code that computed these metrics, which may differ from the code
+    # that trained the run only when the run itself is a dirty-tree run.
+    code: GitState
     evaluation: dict[str, object]
     folds: list[FoldSummary]
     reliability: ReliabilityTable
 
 
-def _stored_config(conn: sqlite3.Connection, run_id: str) -> tuple[Config, str, str | None]:
+def _stored_config(conn: sqlite3.Connection, run_id: str) -> tuple[Config, RunManifest]:
     try:
         manifest = run_manifest(conn, run_id)
     except KeyError as err:
@@ -103,7 +112,18 @@ def _stored_config(conn: sqlite3.Connection, run_id: str) -> tuple[Config, str, 
         config = Config.model_validate_json(json.dumps(manifest.config))
     except ValidationError as err:
         raise EvaluationError(f"run {run_id} has a config this code cannot read:\n{err}") from err
-    return config, manifest.data_hash, manifest.finished_at
+    return config, manifest
+
+
+def _check_code(manifest: RunManifest, code: GitState) -> None:
+    if manifest.git_dirty:
+        return
+    if code.dirty or code.commit != manifest.git_commit:
+        now = f"{code.commit}{' with uncommitted changes' if code.dirty else ''}"
+        raise EvaluationError(
+            f"run {manifest.run_id} trained from a clean tree at {manifest.git_commit}, but "
+            f"this tree is at {now}. Check out that commit with a clean tree to evaluate it."
+        )
 
 
 def _check_finished(conn: sqlite3.Connection, run_id: str, n_folds: int, finished: bool) -> None:
@@ -154,18 +174,20 @@ def evaluate_run(
     samples: Sequence[Sample],
     report: ChecksumReport,
     dirs: OutputDirs,
+    code: GitState,
 ) -> Path:
     """Evaluate every out-of-fold prediction of ``run_id`` and return the path of its summary.
 
     ``samples`` are the labeled DRIVE training images and ``report`` their
-    checksum verification, which must match the run's data hash. Raises
-    ``EvaluationError`` before writing anything if any check fails. Rewrites
-    the run's ``manifest.json`` from the database first.
+    checksum verification, which must match the run's data hash. ``code`` is
+    the state of the evaluating checkout. Raises ``EvaluationError`` before
+    writing anything if any check fails. Then rewrites the run's
+    ``manifest.json`` from the database and writes the metrics.
     """
-    config, run_data_hash, finished_at = _stored_config(conn, run_id)
-    _check_finished(conn, run_id, config.folds.n_folds, finished_at is not None)
-    write_manifest(run_manifest(conn, run_id), dirs.results)
-    if not report.ok or data_hash(report.checked) != run_data_hash:
+    config, manifest = _stored_config(conn, run_id)
+    _check_finished(conn, run_id, config.folds.n_folds, manifest.finished_at is not None)
+    _check_code(manifest, code)
+    if not report.ok or data_hash(report.checked) != manifest.data_hash:
         raise EvaluationError(
             f"the data does not match the data run {run_id} trained on. "
             "Evaluate against the same checksummed data."
@@ -222,8 +244,9 @@ def evaluate_run(
         [f for _, _, f in pooled],
         config.evaluation.reliability_bins,
     )
+    write_manifest(manifest, dirs.results)
     fill_evaluation(conn, run_id, records)
-    summary = RunEvaluation(run_id, config.evaluation.model_dump(), summaries, table)
+    summary = RunEvaluation(run_id, code, config.evaluation.model_dump(), summaries, table)
     path = dirs.results / run_id / EVALUATION_NAME
     partial = path.with_name(f"{path.name}.partial")
     partial.write_text(json.dumps(asdict(summary), indent=2) + "\n", encoding="utf-8")
@@ -274,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
             logger.error("no finished run in %s", args.db)
             return 1
         try:
-            evaluate_run(conn, run_id, samples, report, dirs)
+            evaluate_run(conn, run_id, samples, report, dirs, git_state(REPO))
         except EvaluationError as err:
             logger.error("%s", err)
             return 1

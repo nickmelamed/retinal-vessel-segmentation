@@ -30,6 +30,7 @@ from retinal_vessels.evaluate import EvaluationError, evaluate_run, latest_finis
 from retinal_vessels.metrics import auc_roc, binarize, binary_metrics, reliability, thin_edge
 from retinal_vessels.provenance import (
     ChecksumReport,
+    GitState,
     RunManifest,
     check_or_write_checksums,
     data_hash,
@@ -50,6 +51,8 @@ ENV = {
     "compute_platform": "local",
 }
 EVALUATED = "auc_roc, auc_pr, brier, thin_sensitivity, thick_sensitivity"
+# The fixture's run trained from a clean tree at this commit.
+CODE = GitState(commit="c0ffee", dirty=False, tag=None)
 
 
 @pytest.fixture(autouse=True)
@@ -73,8 +76,8 @@ class Finished:
     folds: list[Fold]
     probabilities: dict[str, np.ndarray]
 
-    def evaluate(self) -> Path:
-        return evaluate_run(self.conn, RUN_ID, self.samples, self.report, self.dirs)
+    def evaluate(self, code: GitState = CODE) -> Path:
+        return evaluate_run(self.conn, RUN_ID, self.samples, self.report, self.dirs, code)
 
     def rows(self) -> list[tuple[object, ...]]:
         return self.conn.execute(
@@ -178,6 +181,7 @@ def test_writes_the_run_summary(finished: Finished) -> None:
     assert path == finished.dirs.results / RUN_ID / "evaluation.json"
     summary = json.loads(path.read_text())
     assert summary["run_id"] == RUN_ID
+    assert summary["code"] == {"commit": "c0ffee", "dirty": False, "tag": None}
     assert summary["evaluation"] == {"reliability_bins": 10, "thin_quantile": 0.5}
     assert [f["fold"] for f in summary["folds"]] == [1, 2, 3, 4, 5]
 
@@ -217,11 +221,12 @@ def test_rewrites_the_manifest_from_the_database(finished: Finished) -> None:
     assert json.loads(manifest.read_text())["finished_at"] == T1
 
 
-def assert_nothing_written(finished: Finished, match: str) -> None:
+def assert_nothing_written(finished: Finished, match: str, code: GitState = CODE) -> None:
     with pytest.raises(EvaluationError, match=match):
-        finished.evaluate()
+        finished.evaluate(code)
     assert all(v is None for row in finished.rows() for v in row[1:])
     assert not (finished.dirs.results / RUN_ID / "evaluation.json").exists()
+    assert not (finished.dirs.results / RUN_ID / "manifest.json").exists()
 
 
 def test_refuses_an_unfinished_run(finished: Finished) -> None:
@@ -236,7 +241,7 @@ def test_refuses_a_run_missing_a_fold(finished: Finished) -> None:
 
 def test_refuses_an_unknown_run(finished: Finished) -> None:
     with pytest.raises(EvaluationError, match="no run 'other'"):
-        evaluate_run(finished.conn, "other", finished.samples, finished.report, finished.dirs)
+        evaluate_run(finished.conn, "other", finished.samples, finished.report, finished.dirs, CODE)
 
 
 def first_test_file(finished: Finished) -> Path:
@@ -315,8 +320,9 @@ def cli(finished: Finished, root: Path, *extra: str) -> int:
 
 
 def test_main_evaluates_the_latest_finished_run(
-    finished: Finished, synthetic_data_root: Path
+    finished: Finished, synthetic_data_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(evaluate, "git_state", lambda repo: CODE)
     finished.conn.commit()
     assert cli(finished, synthetic_data_root) == 0
     assert (finished.dirs.results / RUN_ID / "evaluation.json").is_file()
@@ -358,3 +364,29 @@ def test_thin_edge_sees_only_training_and_validation_labels(
     for fold, ids in zip(finished.folds, seen, strict=True):
         assert {by_id[i] for i in ids} == {*fold.train, *fold.val}
         assert len(ids) == len(fold.train) + len(fold.val)
+
+
+def test_a_clean_run_needs_a_clean_tree(finished: Finished) -> None:
+    dirty = GitState(commit="c0ffee", dirty=True, tag=None)
+    assert_nothing_written(finished, "c0ffee with uncommitted changes", dirty)
+
+
+def test_a_clean_run_needs_its_own_commit(finished: Finished) -> None:
+    later = GitState(commit="beef", dirty=False, tag="v9")
+    assert_nothing_written(finished, "clean tree at c0ffee, but this tree is at beef", later)
+
+
+def test_a_dirty_run_can_be_evaluated_from_any_tree(finished: Finished) -> None:
+    finished.conn.execute("UPDATE runs SET git_dirty = 1")
+    elsewhere = GitState(commit="beef", dirty=True, tag=None)
+    summary = json.loads(finished.evaluate(elsewhere).read_text())
+    assert summary["code"] == {"commit": "beef", "dirty": True, "tag": None}
+
+
+def test_main_refuses_a_clean_run_from_another_commit(
+    finished: Finished, synthetic_data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(evaluate, "git_state", lambda repo: replace(CODE, commit="beef"))
+    finished.conn.commit()
+    assert cli(finished, synthetic_data_root) == 1
+    assert all(row[1] is None for row in finished.rows())

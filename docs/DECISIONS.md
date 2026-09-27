@@ -368,9 +368,17 @@ this over a checksum column, which would have needed a schema change.
 Evaluation also requires the data checksums to match the run's `data_hash`, so
 the labels are the ones training used.
 
-Evaluation first rewrites `manifest.json` from the `runs` row. A crash
-between marking the run finished and writing the manifest would otherwise
-leave the file without `finished_at`.
+The phase 3 spec review found that evaluation recorded no code version, so
+reported numbers could come from a dirty or later checkout without a trace
+(rule 7). The owner chose to have `evaluation.json` record the evaluating
+commit, dirty flag, and tag. A run trained from a clean tree is evaluated
+only from a clean tree at that same commit, which mirrors the resume rule. A
+dirty-tree run can be evaluated from any checkout, and the record shows
+which.
+
+Once every check passes, evaluation rewrites `manifest.json` from the `runs`
+row. A crash between marking the run finished and writing the manifest would
+otherwise leave the file without `finished_at`.
 
 Items from the phase 2 reviews are settled as follows.
 `verify_checkpoints.py` fails unless the run is finished with every fold
