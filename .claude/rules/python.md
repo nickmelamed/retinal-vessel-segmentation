@@ -8,7 +8,8 @@ paths:
 # Python standards
 
 - Installable package under `src/retinal_vessels/`. `uv.lock` is the source of
-  truth for dependencies, and `requirements.txt` is generated from it for Colab.
+  truth for dependencies. Colab installs from it with uv, and `requirements.txt`
+  is generated from it for pip users.
 - Type hints everywhere, and `mypy --strict` passes on the package.
 - NumPy-style docstrings on public functions and classes, stating array shapes
   and dtypes where they matter (see writing-style.md for tone).

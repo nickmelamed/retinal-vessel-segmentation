@@ -86,7 +86,7 @@ Per image, then summarized (mean, SD, median, min, max, and bootstrap 95% CIs ac
 ├── LICENSE                   # code license only; the data has its own terms
 ├── pyproject.toml            # package metadata, deps, ruff/mypy/pytest/coverage config
 ├── uv.lock                   # locked Python environment (source of truth)
-├── requirements.txt          # generated from uv.lock for Colab; never hand-edited
+├── requirements.txt          # generated from uv.lock for pip users; never hand-edited
 ├── .python-version           # pinned Python version
 ├── .pre-commit-config.yaml
 ├── .gitattributes
@@ -331,7 +331,7 @@ All training entry points must also run on Colab through `notebooks/colab_runner
 
 ### Python
 
-- Installable package under `src/retinal_vessels/` (src layout), Python version pinned in `.python-version`, dependencies managed with `uv`. `uv.lock` is the source of truth; `requirements.txt` is generated from it for Colab and CI checks that the two agree.
+- Installable package under `src/retinal_vessels/` (src layout), Python version pinned in `.python-version`, dependencies managed with `uv`. `uv.lock` is the source of truth; `requirements.txt` is generated from it for pip users and CI checks that the two agree. Colab installs from `uv.lock` (D-011).
 - Type hints everywhere; `mypy --strict` on the package. NumPy-style docstrings on every public function and class, explaining *why* where it isn't obvious, including array shapes and dtypes.
 - Small, single-purpose modules with pure functions where possible; I/O at the edges. No logic in notebooks; the notebook only reads artifacts and displays them.
 - All settings come from `configs/*.yaml`, loaded into typed, validated config objects by `retinal_vessels.config`. Unknown or missing keys are errors. No magic numbers in code.
@@ -385,7 +385,7 @@ Git and commit discipline is in docs/CONTRIBUTING.md.
 - **Reported GPU runs:** Google Colab (free tier, T4), driven from VS Code through the official Colab extension (Select Kernel → Colab → New Colab Server). The code runs on Colab's machine, not the laptop, so every session is treated as a fresh, disposable environment.
 - **Colab workflow** (implemented in `notebooks/colab_runner.ipynb`, which contains no project logic, only these steps):
   1. Clone the repo and check out the **tagged commit** being run. Never edit code in the Colab session; edit locally, commit, push, and pull. This keeps reported runs on clean, tagged commits (section 2).
-  2. Install the environment from `requirements.txt` and print the versions, including the GPU (`nvidia-smi`).
+  2. Install uv and the locked environment with `uv sync --locked`, exactly as CI does, and print the versions, including the GPU (`nvidia-smi`). See D-011.
   3. Place the DRIVE data on the Colab machine (the extension's upload feature; Google Drive mounting isn't supported natively in the extension), then run `make check-data` so the checksums must match before any training.
   4. Run the `make` targets.
   5. Before the session ends, download `results/experiments.db`, `results/<run_id>/` manifests, and checkpoints to the laptop, and verify the checkpoint SHA-256 values against the database.

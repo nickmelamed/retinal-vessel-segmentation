@@ -9,7 +9,8 @@ only these steps and no project logic.
 
 1. Clone the repo and check out the tagged commit being run. Never edit code
    in the Colab session. Edit locally, commit, push, and pull.
-2. Install from `requirements.txt` and print versions, including `nvidia-smi`.
+2. Install uv, run `uv sync --locked` (the same environment as CI, see D-011),
+   and print versions, including `nvidia-smi`.
 3. Upload the data to the Colab machine, then run `make check-data`. The
    checksums must match before any training.
 4. Run the `make` targets.
