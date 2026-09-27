@@ -36,6 +36,8 @@ from retinal_vessels.provenance import (
     ChecksumReport,
     compute_checksums,
     format_checksums,
+    read_checksums,
+    sha256_file,
 )
 from tests.fixtures.synthetic_drive import write_synthetic_drive
 
@@ -149,11 +151,15 @@ def rows(outcome: Outcome) -> dict[str, list[tuple[Any, ...]]]:
 def assert_same_results(a: Outcome, b: Outcome) -> None:
     assert rows(a) == rows(b)
     pa, pb = a.dirs.predictions(a.run_id), b.dirs.predictions(b.run_id)
-    names = sorted(p.name for p in pa.iterdir())
+    names = sorted(p.name for p in pa.glob("*.npy"))
     assert len(names) == 20
-    assert names == sorted(p.name for p in pb.iterdir())
+    assert names == sorted(p.name for p in pb.glob("*.npy"))
     for name in names:
         np.testing.assert_array_equal(np.load(pa / name), np.load(pb / name))
+    for fold in range(1, 6):
+        hashes_a = a.dirs.prediction_hashes(a.run_id, fold)
+        assert hashes_a.read_text() == b.dirs.prediction_hashes(b.run_id, fold).read_text()
+    assert sorted(p.name for p in pa.iterdir()) == sorted(p.name for p in pb.iterdir())
 
 
 def fold_rows(outcome: Outcome) -> list[tuple[int, str, int]]:
@@ -173,8 +179,17 @@ def test_reference_run_is_complete(reference: Outcome) -> None:
     with closing(sqlite3.connect(reference.db)) as conn:
         finished = conn.execute("SELECT finished_at FROM runs").fetchone()[0]
     assert finished is not None
+    predictions = reference.dirs.predictions(reference.run_id)
+    listed: set[str] = set()
     for fold in range(1, 6):
         assert reference.dirs.checkpoint(reference.run_id, fold).is_file()
+        hashes = read_checksums(reference.dirs.prediction_hashes(reference.run_id, fold))
+        assert len(hashes) == 4
+        for name, digest in hashes.items():
+            assert sha256_file(predictions / name) == digest
+        listed |= set(hashes)
+    assert listed == {p.name for p in predictions.glob("*.npy")}
+    assert not list(predictions.glob("*.partial"))
 
 
 def test_interrupted_after_fold_2_resumes_at_fold_3(

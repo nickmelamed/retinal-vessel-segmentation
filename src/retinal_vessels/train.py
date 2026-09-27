@@ -65,6 +65,7 @@ from retinal_vessels.provenance import (
     build_manifest,
     check_or_write_checksums,
     environment,
+    format_checksums,
     new_run_id,
     sha256_file,
     utc_timestamp,
@@ -104,6 +105,9 @@ class OutputDirs:
     def predictions(self, run_id: str) -> Path:
         return self.results / run_id / "predictions"
 
+    def prediction_hashes(self, run_id: str, fold: int) -> Path:
+        return self.predictions(run_id) / f"fold_{fold}.sha256"
+
 
 def derived_seed(*entropy: int) -> int:
     """Return a 32-bit seed mixed from ``entropy``, such as (seed, fold, epoch).
@@ -138,8 +142,8 @@ def train_fold(
 ) -> FoldRecord:
     """Train one fold, predict its test images, and return what the fold writes.
 
-    Saves the best checkpoint by validation Dice and the test-image
-    probabilities to disk. The database is left to the caller, so a crash
+    Saves the best checkpoint by validation Dice, the test-image
+    probabilities, and their SHA-256 values to disk. The database is left to the caller, so a crash
     here leaves the fold ``running``.
     """
     import keras
@@ -194,6 +198,15 @@ def train_fold(
         np.save(out / f"{image_id}.npy", prob)
         metrics = binary_metrics(binarize(prob, best_threshold_value), item.label, item.fov)
         test_metrics.append(ImageMetrics(DATASET, image_id, metrics))
+    # Evaluation checks these, so a stale or swapped probability file is caught
+    # before its metrics are computed (D-021).
+    hashes = dirs.prediction_hashes(run_id, fold.number)
+    partial_hashes = hashes.with_name(f"{hashes.name}.partial")
+    names = [f"{image_id}.npy" for image_id in fold.test]
+    partial_hashes.write_text(
+        format_checksums({n: sha256_file(out / n) for n in names}), encoding="utf-8"
+    )
+    os.replace(partial_hashes, hashes)
     return FoldRecord(
         run_id=run_id,
         fold=fold.number,
