@@ -1,7 +1,7 @@
 import hashlib
 import json
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -241,6 +241,8 @@ def test_run_ids_sort_by_time_and_are_unique() -> None:
     assert early.startswith("20260101T000000Z-")
     assert early < late
     assert new_run_id() != new_run_id()
+    pacific = datetime(2026, 9, 26, 8, 30, tzinfo=UTC).astimezone(timezone(timedelta(hours=-7)))
+    assert new_run_id(pacific).startswith("20260926T083000Z-")
 
 
 def test_compute_platform_detects_colab() -> None:
@@ -263,8 +265,6 @@ def test_environment_describes_this_machine() -> None:
 
 
 def test_timestamps_match_the_schema_format() -> None:
-    from datetime import timedelta, timezone
-
     pacific = timezone(timedelta(hours=-7))
     assert utc_timestamp(datetime(2026, 9, 26, 8, 30, 15, 999, tzinfo=pacific)) == (
         "2026-09-26T15:30:15Z"

@@ -221,7 +221,7 @@ def utc_timestamp(now: datetime | None = None) -> str:
 
 def new_run_id(now: datetime | None = None) -> str:
     """Return a sortable, unique run id such as ``20260926T153000Z-1a2b3c``."""
-    stamp = (now or datetime.now(UTC)).strftime("%Y%m%dT%H%M%SZ")
+    stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
     return f"{stamp}-{uuid.uuid4().hex[:6]}"
 
 
