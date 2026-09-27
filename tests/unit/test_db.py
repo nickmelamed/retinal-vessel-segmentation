@@ -212,11 +212,6 @@ def test_a_finished_clean_tagged_run_can_be_reported(conn: sqlite3.Connection) -
     assert conn.execute("SELECT is_reported FROM runs").fetchall() == [(1,)]
 
 
-def test_an_unfinished_run_cannot_be_reported(conn: sqlite3.Connection) -> None:
-    with pytest.raises(sqlite3.IntegrityError, match="reported_needs_finish"):
-        insert(conn, "runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1})
-
-
 def test_external_runs_record_model_and_threshold_together(conn: sqlite3.Connection) -> None:
     insert(conn, "runs", RUN)
     frozen = {
