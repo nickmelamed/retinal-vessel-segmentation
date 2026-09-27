@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup lock lock-check check-data train verify-checkpoints lint test smoke mutate ci agent-check
+.PHONY: help setup lock lock-check check-data train evaluate verify-checkpoints lint test smoke mutate ci agent-check
 
 EXPORT := uv export --no-dev --no-hashes --no-emit-project --quiet
 VARIANT ?= baseline
@@ -25,6 +25,9 @@ check-data:  ## Verify datasets against data/CHECKSUMS.sha256
 
 train:  ## Resumable 5-fold CV for one config (make train VARIANT=baseline)
 	uv run python -m retinal_vessels.train --config configs/$(VARIANT).yaml
+
+evaluate:  ## Fill AUCs, Brier, and thin/thick sensitivity from saved predictions (RUN=<run_id>, default latest finished)
+	uv run python -m retinal_vessels.evaluate $(if $(RUN),--run-id $(RUN),)
 
 verify-checkpoints:  ## Check downloaded checkpoints against the database (RUN=<run_id>, default latest)
 	uv run python scripts/verify_checkpoints.py $(if $(RUN),--run-id $(RUN),)
