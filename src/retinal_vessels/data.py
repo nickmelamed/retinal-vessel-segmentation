@@ -105,6 +105,8 @@ def make_folds(
     ids = sorted(image_ids)
     if len(set(ids)) != len(ids):
         raise ValueError("image ids contain duplicates")
+    if len(set(spread)) != len(spread):
+        raise ValueError("spread ids contain duplicates")
     if not ids or n_folds < 2 or len(ids) % n_folds != 0:
         raise ValueError(f"cannot split {len(ids)} images into {n_folds} equal folds")
     per_fold = len(ids) // n_folds

@@ -1,4 +1,5 @@
 from collections import Counter
+from collections.abc import Collection
 from dataclasses import replace
 from typing import Any
 
@@ -144,6 +145,7 @@ def test_fold_rows_flatten_every_assignment() -> None:
     ("ids", "spread", "n_folds", "n_val", "message"),
     [
         (["a", "a", "b", "c"], set(), 2, 1, "^image ids contain duplicates$"),
+        (DRIVE_TRAIN, ["25", "25"], 5, 2, "^spread ids contain duplicates$"),
         ([], set(), 5, 2, "cannot split 0 images"),
         (DRIVE_TRAIN[:19], set(), 5, 2, "cannot split 19 images into 5"),
         (DRIVE_TRAIN, set(), 1, 2, "into 1 equal folds"),
@@ -154,7 +156,7 @@ def test_fold_rows_flatten_every_assignment() -> None:
     ],
 )
 def test_invalid_split_raises(
-    ids: list[str], spread: set[str], n_folds: int, n_val: int, message: str
+    ids: list[str], spread: Collection[str], n_folds: int, n_val: int, message: str
 ) -> None:
     with pytest.raises(ValueError, match=message):
         make_folds(ids, spread, n_folds=n_folds, n_val=n_val, seed=0)
