@@ -2,6 +2,9 @@
 -- Created by retinal_vessels.db.create_schema. Every statement is idempotent.
 -- Booleans are INTEGER 0 or 1. Timestamps are ISO 8601 text in UTC.
 --
+-- Cross-validation folds are numbered from 1. In training_history, fold 0 is
+-- the frozen final model trained on all labeled images.
+--
 -- fold_assignments deliberately allows an image to hold two roles in one fold,
 -- or to be a test image in two folds. Those are the leaks that
 -- queries/04_leakage_audit.sql detects, and the audit is only meaningful if
@@ -76,7 +79,7 @@ CREATE TABLE IF NOT EXISTS runs (
 
 CREATE TABLE IF NOT EXISTS fold_assignments (
     run_id TEXT NOT NULL REFERENCES runs (run_id),
-    fold INTEGER NOT NULL CHECK (fold >= 0),
+    fold INTEGER NOT NULL CHECK (fold >= 1),
     dataset TEXT NOT NULL,
     image_id TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('train', 'val', 'test')),
@@ -86,7 +89,7 @@ CREATE TABLE IF NOT EXISTS fold_assignments (
 
 CREATE TABLE IF NOT EXISTS fold_status (
     run_id TEXT NOT NULL REFERENCES runs (run_id),
-    fold INTEGER NOT NULL CHECK (fold >= 0),
+    fold INTEGER NOT NULL CHECK (fold >= 1),
     status TEXT NOT NULL CHECK (status IN ('running', 'complete')),
     checkpoint_sha256 TEXT,
     started_at TEXT NOT NULL,
@@ -101,7 +104,7 @@ CREATE TABLE IF NOT EXISTS fold_status (
 
 CREATE TABLE IF NOT EXISTS thresholds (
     run_id TEXT NOT NULL REFERENCES runs (run_id),
-    fold INTEGER NOT NULL CHECK (fold >= 0),
+    fold INTEGER NOT NULL CHECK (fold >= 1),
     threshold REAL NOT NULL CHECK (threshold BETWEEN 0 AND 1),
     selection_rule TEXT NOT NULL,
     val_dice REAL CHECK (val_dice BETWEEN 0 AND 1),
@@ -113,7 +116,7 @@ CREATE TABLE IF NOT EXISTS per_image_metrics (
     dataset TEXT NOT NULL,
     image_id TEXT NOT NULL,
     -- NULL for external datasets, which are not split into folds.
-    fold INTEGER CHECK (fold >= 0),
+    fold INTEGER CHECK (fold >= 1),
     prediction_mode TEXT NOT NULL CHECK (prediction_mode IN ('single', 'tta')),
     dice REAL CHECK (dice BETWEEN 0 AND 1),
     sensitivity REAL CHECK (sensitivity BETWEEN 0 AND 1),

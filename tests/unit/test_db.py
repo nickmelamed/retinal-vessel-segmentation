@@ -188,3 +188,17 @@ def test_connect_creates_the_results_directory(tmp_path: Path) -> None:
 def test_a_clean_tagged_run_can_be_reported(conn: sqlite3.Connection) -> None:
     insert(conn, "runs", {**RUN, "git_tag": "v0.1.0", "is_reported": 1})
     assert conn.execute("SELECT is_reported FROM runs").fetchall() == [(1,)]
+
+
+def test_folds_count_from_one_and_zero_is_the_frozen_model(conn: sqlite3.Connection) -> None:
+    insert(conn, "runs", RUN)
+    insert(conn, "images", IMAGE)
+    for table, row in [
+        ("fold_assignments", {"dataset": "drive", "image_id": "21", "role": "test"}),
+        ("fold_status", {"status": "running", "started_at": "t0"}),
+        ("thresholds", {"threshold": 0.5, "selection_rule": "max val dice"}),
+        ("per_image_metrics", {"dataset": "drive", "image_id": "21", "prediction_mode": "single"}),
+    ]:
+        with pytest.raises(sqlite3.IntegrityError):
+            insert(conn, table, {"run_id": "r1", "fold": 0, **row})
+    insert(conn, "training_history", {"run_id": "r1", "fold": 0, "epoch": 0, "train_loss": 0.3})

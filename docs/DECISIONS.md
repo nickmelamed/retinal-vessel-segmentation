@@ -103,3 +103,10 @@ arguments with defaults.
 
 `CITATION.cff` cites only DRIVE for now. STARE and CHASE_DB1 are added in
 phase 7, after their sources and terms are verified (section 4).
+
+## D-010 Fold numbering (2026-09-26)
+
+Cross-validation folds are numbered 1 to 5, matching SPEC section 14's
+wording ("folds 3–5"). The schema rejects fold 0 in every fold table except
+`training_history`, where fold 0 holds the frozen final model trained on all
+20 labeled images (section 5). The owner approved this on 2026-09-26.
