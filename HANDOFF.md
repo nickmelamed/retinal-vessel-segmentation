@@ -7,10 +7,10 @@ do the work on a `phase/1-data` branch cut from `main` after phase 0 merges.
 
 ## Where things stand (2026-09-26)
 
-Phase 0 is built on `phase/0-setup` and ticked in PROGRESS.md. The branch
-is pushed and open as PR #1. CI passes on GitHub. Check `gh pr view 1` for
-whether it has merged, and if not, ask the owner before merging (merge
-commit, not squash).
+Phase 0 is merged into `main` (PR #1, merge commit `02e72b0`) and ticked in
+PROGRESS.md. CI passes on `main`. A follow-up branch, `fix/schema-review`,
+carries the last review's schema fixes as PR #2. Check `gh pr view 2`, and
+cut `phase/1-data` from `main` once it has merged.
 
 What exists now:
 
@@ -26,7 +26,10 @@ What exists now:
 - `sql/schema.sql` is schema version 1 (D-007). It has no anomaly tables yet.
   `runs.applied_threshold` and `runs.frozen_model_id` exist for query 09.
   Folds count from 1, and fold 0 in `training_history` is the frozen model
-  (D-010). A reported run must be clean and tagged (`runs.git_tag`). Built
+  (D-010). A reported run must be finished, clean, and tagged (`runs.git_tag`). An
+  external run sets `frozen_model_id` and `applied_threshold` together, and
+  query 09 finds external runs by `frozen_model_id`. Timestamps are
+  whole-second UTC ending in Z, and abnormal images must carry their note. Built
   wheels carry a copy of the schema.
 - `scripts/check_data.py` (`make check-data`) verifies `data/DRIVE` against
   `data/CHECKSUMS.sha256` and never rewrites it (D-004). The checksum file
@@ -44,7 +47,7 @@ What exists now:
   template.
 - Docs: DECISIONS.md (D-001 to D-014), DATA.md, REPO_SETTINGS.md,
   CHANGELOG.md, CITATION.cff, the MIT LICENSE, and an interim README.
-- `make ci` passes: 71 tests at 97% coverage, with the 85% floor set in
+- `make ci` passes: 73 tests at 97% coverage, with the 85% floor set in
   `pyproject.toml`. Pytest treats `ResourceWarning` as an error.
 - `.claude/skills/commit/` holds the commit procedure as a skill.
 
