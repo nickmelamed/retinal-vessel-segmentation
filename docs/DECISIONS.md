@@ -268,3 +268,61 @@ comparisons in R, must join on `fold_assignments`, not on `runs.seed`.
 `folds.seed` is 20260926, the value the baseline already used, so the
 baseline's fold assignment is unchanged. The smoke config now uses the
 baseline's folds too, and keeps its own top-level seed.
+
+## D-020 Phase 2 training conventions (2026-09-27)
+
+Early stopping and the fold threshold need Dice on whole validation images,
+so the owner moved sliding-window inference (`predict.py`) and the
+confusion-matrix part of `metrics.py` (Dice, sensitivity, specificity,
+precision, accuracy, predicted vessel fraction) from phase 3 into phase 2.
+AUCs, the Brier score, thin and thick sensitivity, the Hypothesis tests, and
+mutmut on `metrics.py` stay in phase 3. Each fold saves its test images'
+probabilities as `results/<run_id>/predictions/<image_id>.npy`, so phase 3
+computes those metrics without retraining. Checkpoints go to
+`models/<run_id>/fold_<k>.keras`.
+
+After every epoch, training sweeps the candidate thresholds on the fold's two
+validation images and records the best mean per-image Dice. The owner chose
+this over monitoring Dice at a fixed 0.5. Training stops once that value has
+not improved for `training.patience` epochs, and the best epoch's checkpoint
+and threshold are kept. That Dice is `thresholds.val_dice`, and the
+`training_history` curve holds the same quantity per epoch. The candidates are
+`i / threshold.divisions` for i from 1 to divisions minus 1, an integer count
+in place of a float step so the grid stays exact. A probability equal to the
+threshold counts as vessel. Ties go to the lowest threshold. Dice is 1 when
+neither the label nor the prediction has a vessel pixel. Other ratios with a
+zero denominator are NULL.
+
+An epoch is `patches.per_epoch` patches. Weights are initialized from a seed
+mixed from (seed, fold), and each epoch's patches from (seed, fold, epoch),
+with NumPy's `SeedSequence`. Every fold depends only on its own seeds, so a
+resumed fold repeats an uninterrupted one bit for bit when deterministic ops
+are on, which the resumability tests check. `set_seed` also seeds Keras,
+whose layers draw initial weights from their own generator. The baseline
+trains for at most 100 epochs with patience 10.
+
+Rerunning `make train` continues the unfinished run whose variant, config
+hash, commit, and data hash all match. Only clean-tree runs are resumed, and
+only from a clean tree. A dirty tree always starts a new run, since
+uncommitted edits could differ from the code that trained the earlier folds
+while the run's row names a single commit (section 17). The phase 2 spec
+review found this gap. More than one match is an error, and
+`--new` always starts a fresh run. A finished run is never resumed, so
+the same command then starts a new one. Resuming is
+refused if the stored fold assignments differ from the computed ones, or if
+the environment differs (Python, TensorFlow or CUDA version, device, GPU
+type, or platform), since reported comparisons must not mix hardware
+(section 16). Resuming is also refused when a complete fold's
+checkpoint is missing or does not match its stored SHA-256, or when any of
+its prediction files is missing, since the run would otherwise finish
+without an out-of-fold prediction for every image. A resumed run rebuilds its manifest from the `runs` row,
+because a fresh Colab machine may not have the original `manifest.json`.
+
+A fold's threshold, test-image metrics, and history are written together
+with its `complete` status in one transaction. A crash therefore leaves a
+fold either complete with all its rows or `running`, and a running fold's
+partial rows are deleted before it is retrained.
+
+The phase 2 smoke test trains the full smoke cross-validation through the
+CLI. The evaluation and table steps that SPEC section 14 lists join the smoke
+test in phases 3 and 4.

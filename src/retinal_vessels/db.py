@@ -1,12 +1,15 @@
 """Open the experiments database, create its schema, write rows, and run queries."""
 
+import json
 import logging
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import astuple, dataclass, fields
 from pathlib import Path
 
 from retinal_vessels.data import Fold, Sample, fold_rows
+from retinal_vessels.metrics import BinaryMetrics
+from retinal_vessels.provenance import RunManifest
 
 logger = logging.getLogger(__name__)
 
@@ -166,3 +169,278 @@ def write_fold_assignments(
             "VALUES (?, ?, ?, ?, ?)",
             rows,
         )
+
+
+RUN_COLUMNS = (
+    "run_id",
+    "variant",
+    "config",
+    "config_hash",
+    "seed",
+    "git_commit",
+    "git_dirty",
+    "git_tag",
+    "data_hash",
+    "python_version",
+    "tensorflow_version",
+    "cuda_version",
+    "device",
+    "gpu_type",
+    "compute_platform",
+    "deterministic_ops",
+    "started_at",
+)
+
+
+def insert_run(conn: sqlite3.Connection, manifest: RunManifest) -> None:
+    """Write the ``runs`` row for a run that is starting.
+
+    The config is stored as canonical JSON, the same text as ``Config.as_json``.
+    ``is_reported`` stays 0. Marking a run as reported is a separate, later step.
+    """
+    env = manifest.environment
+    values = (
+        manifest.run_id,
+        manifest.variant,
+        json.dumps(manifest.config, sort_keys=True),
+        manifest.config_hash,
+        manifest.seed,
+        manifest.git_commit,
+        int(manifest.git_dirty),
+        manifest.git_tag,
+        manifest.data_hash,
+        env["python_version"],
+        env["tensorflow_version"],
+        env.get("cuda_version"),
+        env["device"],
+        env["gpu_type"],
+        env["compute_platform"],
+        int(manifest.deterministic_ops),
+        manifest.started_at,
+    )
+    cols = ", ".join(RUN_COLUMNS)
+    marks = ", ".join("?" for _ in RUN_COLUMNS)
+    with conn:
+        conn.execute(f"INSERT INTO runs ({cols}) VALUES ({marks})", values)
+
+
+ENV_COLUMNS = (
+    "python_version",
+    "tensorflow_version",
+    "cuda_version",
+    "device",
+    "gpu_type",
+    "compute_platform",
+)
+
+
+def run_manifest(conn: sqlite3.Connection, run_id: str) -> RunManifest:
+    """Rebuild a run's manifest from its ``runs`` row.
+
+    A resumed run may be on a fresh machine without the original
+    ``manifest.json``, so the database row is the source of truth for it.
+    An unknown run id raises ``KeyError``.
+    """
+    cols = (
+        "variant",
+        "config",
+        "config_hash",
+        "seed",
+        "git_commit",
+        "git_dirty",
+        "git_tag",
+        "data_hash",
+        "deterministic_ops",
+        "started_at",
+        "finished_at",
+        *ENV_COLUMNS,
+    )
+    row = conn.execute(f"SELECT {', '.join(cols)} FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+    if row is None:
+        raise KeyError(f"no run {run_id!r} in the database")
+    v = dict(zip(cols, row, strict=True))
+    return RunManifest(
+        run_id=run_id,
+        variant=v["variant"],
+        config=json.loads(v["config"]),
+        config_hash=v["config_hash"],
+        seed=v["seed"],
+        git_commit=v["git_commit"],
+        git_dirty=bool(v["git_dirty"]),
+        git_tag=v["git_tag"],
+        data_hash=v["data_hash"],
+        deterministic_ops=bool(v["deterministic_ops"]),
+        started_at=v["started_at"],
+        environment={c: v[c] for c in ENV_COLUMNS},
+        finished_at=v["finished_at"],
+    )
+
+
+def find_resumable_run(
+    conn: sqlite3.Connection, variant: str, config_hash: str, git_commit: str, data_hash: str
+) -> str | None:
+    """Return the unfinished clean-tree run with this variant, config, commit, and data.
+
+    A run matching on all four trained with the same code on the same data,
+    so its completed folds can stand. A run started on a dirty tree never
+    matches, since its code cannot be recovered from the commit. More than one
+    match raises ``RuntimeError``, since it is unclear which to continue.
+    """
+    rows = conn.execute(
+        "SELECT run_id FROM runs WHERE finished_at IS NULL AND git_dirty = 0 AND variant = ? "
+        "AND config_hash = ? AND git_commit = ? AND data_hash = ? ORDER BY run_id",
+        (variant, config_hash, git_commit, data_hash),
+    ).fetchall()
+    if len(rows) > 1:
+        ids = [r[0] for r in rows]
+        raise RuntimeError(
+            f"several unfinished runs match: {ids}. Pass --new to start a fresh run."
+        )
+    return None if not rows else str(rows[0][0])
+
+
+def stored_fold_rows(conn: sqlite3.Connection, run_id: str) -> list[tuple[int, str, str]]:
+    """Return ``(fold, image_id, role)`` for ``run_id``, sorted."""
+    rows = conn.execute(
+        "SELECT fold, image_id, role FROM fold_assignments WHERE run_id = ? "
+        "ORDER BY fold, image_id, role",
+        (run_id,),
+    ).fetchall()
+    return [(int(f), str(i), str(r)) for f, i, r in rows]
+
+
+def fold_statuses(conn: sqlite3.Connection, run_id: str) -> dict[int, str]:
+    """Return ``{fold: status}`` for every fold of ``run_id`` that has started."""
+    rows = conn.execute(
+        "SELECT fold, status FROM fold_status WHERE run_id = ?", (run_id,)
+    ).fetchall()
+    return {int(f): str(s) for f, s in rows}
+
+
+FOLD_TABLES = ("thresholds", "per_image_metrics", "training_history")
+
+
+def start_fold(conn: sqlite3.Connection, run_id: str, fold: int, started_at: str) -> int:
+    """Mark ``fold`` as running and return its attempt number.
+
+    A fold left ``running`` by an interrupted attempt has its partial rows
+    in the fold tables deleted and its attempt count raised, so the retrained
+    fold starts clean. Starting a complete fold raises ``ValueError``.
+    """
+    with conn:
+        row = conn.execute(
+            "SELECT status, attempts FROM fold_status WHERE run_id = ? AND fold = ?",
+            (run_id, fold),
+        ).fetchone()
+        if row is None:
+            conn.execute(
+                "INSERT INTO fold_status (run_id, fold, status, started_at) "
+                "VALUES (?, ?, 'running', ?)",
+                (run_id, fold, started_at),
+            )
+            return 1
+        status, attempts = row
+        if status == "complete":
+            raise ValueError(f"fold {fold} of run {run_id} is already complete")
+        for table in FOLD_TABLES:
+            conn.execute(f"DELETE FROM {table} WHERE run_id = ? AND fold = ?", (run_id, fold))
+        conn.execute(
+            "UPDATE fold_status SET attempts = ?, started_at = ? WHERE run_id = ? AND fold = ?",
+            (attempts + 1, started_at, run_id, fold),
+        )
+        return int(attempts) + 1
+
+
+@dataclass(frozen=True)
+class EpochRecord:
+    """One ``training_history`` row. Epochs are numbered from 1."""
+
+    epoch: int
+    train_loss: float
+    val_dice: float
+
+
+@dataclass(frozen=True)
+class ImageMetrics:
+    """Single-pass metrics of one held-out image at its fold's threshold."""
+
+    dataset: str
+    image_id: str
+    metrics: BinaryMetrics
+
+
+@dataclass(frozen=True)
+class FoldRecord:
+    """Everything a finished fold writes before it counts as complete."""
+
+    run_id: str
+    fold: int
+    checkpoint_sha256: str
+    threshold: float
+    selection_rule: str
+    val_dice: float
+    history: Sequence[EpochRecord]
+    test_metrics: Sequence[ImageMetrics]
+
+
+def complete_fold(conn: sqlite3.Connection, record: FoldRecord, completed_at: str) -> None:
+    """Write a fold's threshold, test metrics, and history, and mark it complete.
+
+    Everything goes in one transaction, so a crash leaves the fold either
+    complete with all its rows or still ``running`` with none of them
+    (SPEC section 7). The fold must be ``running``.
+    """
+    run, fold = record.run_id, record.fold
+    if not record.history:
+        raise ValueError(f"fold {fold} of run {run} has no training history")
+    with conn:
+        status = conn.execute(
+            "SELECT status FROM fold_status WHERE run_id = ? AND fold = ?", (run, fold)
+        ).fetchone()
+        if status is None or status[0] != "running":
+            found = None if status is None else status[0]
+            raise ValueError(f"fold {fold} of run {run} is not running (status {found})")
+        conn.execute(
+            "INSERT INTO thresholds (run_id, fold, threshold, selection_rule, val_dice) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (run, fold, record.threshold, record.selection_rule, record.val_dice),
+        )
+        conn.executemany(
+            "INSERT INTO training_history (run_id, fold, epoch, train_loss, val_dice) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [(run, fold, e.epoch, e.train_loss, e.val_dice) for e in record.history],
+        )
+        conn.executemany(
+            "INSERT INTO per_image_metrics (run_id, dataset, image_id, fold, prediction_mode, "
+            "dice, sensitivity, specificity, precision_score, accuracy, "
+            "predicted_vessel_fraction) VALUES (?, ?, ?, ?, 'single', ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    run,
+                    m.dataset,
+                    m.image_id,
+                    fold,
+                    m.metrics.dice,
+                    m.metrics.sensitivity,
+                    m.metrics.specificity,
+                    m.metrics.precision,
+                    m.metrics.accuracy,
+                    m.metrics.predicted_vessel_fraction,
+                )
+                for m in record.test_metrics
+            ],
+        )
+        conn.execute(
+            "UPDATE fold_status SET status = 'complete', checkpoint_sha256 = ?, "
+            "completed_at = ? WHERE run_id = ? AND fold = ?",
+            (record.checkpoint_sha256, completed_at, run, fold),
+        )
+
+
+def finish_run(conn: sqlite3.Connection, run_id: str, finished_at: str) -> None:
+    """Set ``finished_at`` once every started fold of ``run_id`` is complete."""
+    open_folds = [f for f, s in fold_statuses(conn, run_id).items() if s != "complete"]
+    if open_folds:
+        raise ValueError(f"run {run_id} still has folds that are not complete: {open_folds}")
+    with conn:
+        conn.execute("UPDATE runs SET finished_at = ? WHERE run_id = ?", (finished_at, run_id))

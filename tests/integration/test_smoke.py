@@ -3,7 +3,8 @@
 Write synthetic data, record and verify its checksums through the real
 ``check_data.py`` CLI, which also writes the ``images`` rows. Then build the
 folds, check them with the leakage audit, sample a batch of patches, and
-write a run manifest.
+write a run manifest. Finally, train the full smoke cross-validation through
+the ``train`` CLI, as ``make train`` does.
 """
 
 import json
@@ -33,6 +34,7 @@ from retinal_vessels.provenance import (
     build_manifest,
     new_run_id,
     read_checksums,
+    sha256_file,
     verify_checksums,
     write_manifest,
 )
@@ -140,3 +142,60 @@ def test_pipeline_is_wired_end_to_end(synthetic_data_root: Path, tmp_path: Path)
     assert saved["variant"] == "smoke"
     assert len(saved["git_commit"]) == 40
     assert saved["environment"]["tensorflow_version"]
+
+
+def test_training_cli_runs_cross_validation(synthetic_data_root: Path, tmp_path: Path) -> None:
+    assert _check_data(synthetic_data_root, init=True).returncode == 0
+    results, models = tmp_path / "results", tmp_path / "models"
+    db = synthetic_data_root.parent / "results" / "experiments.db"
+    env = {k: v for k, v in os.environ.items() if k != "DRIVE_DIR"}
+    args = [
+        "--config",
+        str(REPO / "configs" / "smoke.yaml"),
+        "--data-root",
+        str(synthetic_data_root),
+        "--checksums",
+        str(synthetic_data_root / "CHECKSUMS.sha256"),
+        "--db",
+        str(db),
+        "--results-dir",
+        str(results),
+        "--models-dir",
+        str(models),
+    ]
+    trained = subprocess.run(
+        [sys.executable, "-m", "retinal_vessels.train", *args],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert trained.returncode == 0, trained.stderr
+
+    with closing(connect(db)) as conn:
+        (run_id,) = conn.execute("SELECT run_id FROM runs").fetchone()
+        assert f"Run {run_id} finished" in trained.stderr
+        statuses = conn.execute("SELECT status FROM fold_status ORDER BY fold").fetchall()
+        assert statuses == [("complete",)] * 5
+        assert conn.execute("SELECT COUNT(*) FROM thresholds").fetchone() == (5,)
+        oof = conn.execute(
+            "SELECT COUNT(DISTINCT image_id) FROM per_image_metrics WHERE dice IS NOT NULL"
+        ).fetchone()
+        assert oof == (20,)
+        assert run_query(conn, "04_leakage_audit") == []
+        shas = dict(conn.execute("SELECT fold, checkpoint_sha256 FROM fold_status").fetchall())
+
+    for fold, sha in shas.items():
+        assert sha256_file(models / run_id / f"fold_{fold}.keras") == sha
+    assert len(list((results / run_id / "predictions").glob("*.npy"))) == 20
+    manifest = json.loads((results / run_id / "manifest.json").read_text())
+    assert manifest["finished_at"] is not None
+    assert manifest["config"]["variant"] == "smoke"
+
+    again = subprocess.run(
+        [sys.executable, "-m", "retinal_vessels.train", *args],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert again.returncode == 0, again.stderr
+    assert "Started run" in again.stderr

@@ -1,10 +1,11 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup lock lock-check check-data lint test smoke mutate ci agent-check
+.PHONY: help setup lock lock-check check-data train verify-checkpoints lint test smoke mutate ci agent-check
 
 EXPORT := uv export --no-dev --no-hashes --no-emit-project --quiet
+VARIANT ?= baseline
 
 help:  ## List targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "%-14s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\n", $$1, $$2}'
 
 # renv::restore() joins this target in phase 8, when the R report arrives.
 setup:  ## Install the locked environment and the git hooks
@@ -21,6 +22,12 @@ lock-check:  ## Fail if uv.lock or requirements.txt is out of date
 
 check-data:  ## Verify datasets against data/CHECKSUMS.sha256
 	uv run python scripts/check_data.py
+
+train:  ## Resumable 5-fold CV for one config (make train VARIANT=baseline)
+	uv run python -m retinal_vessels.train --config configs/$(VARIANT).yaml
+
+verify-checkpoints:  ## Check downloaded checkpoints against the database (RUN=<run_id>, default latest)
+	uv run python scripts/verify_checkpoints.py $(if $(RUN),--run-id $(RUN),)
 
 lint:  ## ruff, ruff format --check, mypy, sqlfluff
 	uv run ruff check .

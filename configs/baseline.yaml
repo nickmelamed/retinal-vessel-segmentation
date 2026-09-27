@@ -25,3 +25,27 @@ patches:
   rot90: true
   brightness_delta: 0.1
   contrast_range: [0.9, 1.1]
+
+model:
+  depth: 4
+  base_filters: 32
+  dropout: 0.2
+  batch_norm: true
+
+loss:
+  name: bce_dice
+  smooth: 1.0
+
+training:
+  max_epochs: 100
+  patience: 10
+  learning_rate: 0.001
+  deterministic_ops: true
+
+inference:
+  window: 128
+  stride: 64
+  batch_size: 16
+
+threshold:
+  divisions: 100

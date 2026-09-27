@@ -25,3 +25,11 @@ All notable changes to this project are documented here. The format follows
 - `make check-data` writes the `images` table and logs the within-FOV vessel fraction.
 - `make mutate` for mutation testing of the fold code.
 - `folds.seed` draws the cross-validation split separately from the training seed.
+- Small configurable U-Net, and FOV-masked BCE + Dice and Dice-only losses.
+- Sliding-window inference and FOV-masked confusion-matrix metrics with the validation threshold sweep.
+- `make train VARIANT=<name>`: resumable 5-fold cross-validation that logs runs, folds, thresholds, per-image metrics, and training curves to the database and writes a run manifest.
+- `make verify-checkpoints` and a Colab runner notebook for GPU runs.
+
+### Fixed
+
+- `set_seed` now seeds Keras, so models built after the same seed start from the same weights.
