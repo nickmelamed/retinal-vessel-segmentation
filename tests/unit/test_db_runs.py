@@ -8,16 +8,20 @@ import pytest
 from retinal_vessels.data import make_folds
 from retinal_vessels.db import (
     EpochRecord,
+    EvaluationRecord,
     FoldRecord,
     ImageMetrics,
     complete_fold,
+    fill_evaluation,
     find_resumable_run,
     finish_run,
     fold_statuses,
+    fold_thresholds,
     insert_run,
     run_manifest,
     start_fold,
     stored_fold_rows,
+    stored_image_metrics,
     write_fold_assignments,
 )
 from retinal_vessels.metrics import BinaryMetrics
@@ -263,3 +267,76 @@ def test_run_manifest_round_trips(db: sqlite3.Connection) -> None:
     assert run_manifest(db, "run-a") == replace(MANIFEST, finished_at=T1)
     with pytest.raises(KeyError, match="run-z"):
         run_manifest(db, "run-z")
+
+
+EVALUATED = ("auc_roc", "auc_pr", "brier", "thin_sensitivity", "thick_sensitivity")
+
+
+def evaluation(image_id: str, **overrides: Any) -> EvaluationRecord:
+    fields: dict[str, Any] = {
+        "dataset": "drive",
+        "image_id": image_id,
+        "auc_roc": 0.97,
+        "auc_pr": 0.88,
+        "brier": 0.04,
+        "thin_sensitivity": 0.55,
+        "thick_sensitivity": None,
+    }
+    return EvaluationRecord(**{**fields, **overrides})
+
+
+def evaluated(conn: sqlite3.Connection) -> list[tuple[Any, ...]]:
+    return conn.execute(
+        f"SELECT image_id, {', '.join(EVALUATED)} FROM per_image_metrics ORDER BY image_id"
+    ).fetchall()
+
+
+@pytest.fixture
+def completed(db: sqlite3.Connection) -> sqlite3.Connection:
+    start_fold(db, "run-a", 1, T0)
+    complete_fold(db, record(), T1)
+    return db
+
+
+def test_readers_return_what_training_wrote(completed: sqlite3.Connection) -> None:
+    assert fold_thresholds(completed, "run-a") == {1: 0.42}
+    assert stored_image_metrics(completed, "run-a", "drive") == {
+        "21": (1, METRICS),
+        "22": (1, METRICS),
+    }
+    assert stored_image_metrics(completed, "run-a", "stare") == {}
+    assert fold_thresholds(completed, "other") == {}
+
+
+def test_fill_evaluation_updates_only_the_evaluated_columns(
+    completed: sqlite3.Connection,
+) -> None:
+    fill_evaluation(completed, "run-a", [evaluation("21"), evaluation("22", auc_roc=None)])
+    assert evaluated(completed) == [
+        ("21", 0.97, 0.88, 0.04, 0.55, None),
+        ("22", None, 0.88, 0.04, 0.55, None),
+    ]
+    assert stored_image_metrics(completed, "run-a", "drive")["21"] == (1, METRICS)
+    fill_evaluation(completed, "run-a", [evaluation("21", brier=0.05)])
+    assert evaluated(completed)[0] == ("21", 0.97, 0.88, 0.05, 0.55, None)
+
+
+@pytest.mark.parametrize(
+    ("bad", "error"),
+    [
+        (evaluation("23"), ValueError),
+        (evaluation("22", dataset="stare"), ValueError),
+        (evaluation("22", brier=1.5), sqlite3.IntegrityError),
+    ],
+)
+def test_fill_evaluation_is_all_or_nothing(
+    completed: sqlite3.Connection, bad: EvaluationRecord, error: type[Exception]
+) -> None:
+    with pytest.raises(error):
+        fill_evaluation(completed, "run-a", [evaluation("21"), bad])
+    assert evaluated(completed) == [("21", *[None] * 5), ("22", *[None] * 5)]
+
+
+def test_fill_evaluation_needs_the_run(completed: sqlite3.Connection) -> None:
+    with pytest.raises(ValueError, match="run other has 0"):
+        fill_evaluation(completed, "other", [evaluation("21")])

@@ -444,3 +444,82 @@ def finish_run(conn: sqlite3.Connection, run_id: str, finished_at: str) -> None:
         raise ValueError(f"run {run_id} still has folds that are not complete: {open_folds}")
     with conn:
         conn.execute("UPDATE runs SET finished_at = ? WHERE run_id = ?", (finished_at, run_id))
+
+
+def fold_thresholds(conn: sqlite3.Connection, run_id: str) -> dict[int, float]:
+    """Return ``{fold: threshold}`` for every fold of ``run_id`` with a recorded threshold."""
+    rows = conn.execute(
+        "SELECT fold, threshold FROM thresholds WHERE run_id = ?", (run_id,)
+    ).fetchall()
+    return {int(f): float(t) for f, t in rows}
+
+
+def stored_image_metrics(
+    conn: sqlite3.Connection, run_id: str, dataset: str
+) -> dict[str, tuple[int, BinaryMetrics]]:
+    """Return ``{image_id: (fold, metrics)}`` for the single-pass rows training wrote."""
+    rows = conn.execute(
+        "SELECT image_id, fold, dice, sensitivity, specificity, precision_score, accuracy, "
+        "predicted_vessel_fraction FROM per_image_metrics "
+        "WHERE run_id = ? AND dataset = ? AND prediction_mode = 'single'",
+        (run_id, dataset),
+    ).fetchall()
+    return {
+        str(image_id): (
+            int(fold),
+            BinaryMetrics(
+                dice=dice,
+                sensitivity=sensitivity,
+                specificity=specificity,
+                precision=precision,
+                accuracy=accuracy,
+                predicted_vessel_fraction=fraction,
+            ),
+        )
+        for image_id, fold, dice, sensitivity, specificity, precision, accuracy, fraction in rows
+    }
+
+
+@dataclass(frozen=True)
+class EvaluationRecord:
+    """Metrics computed from one image's saved probabilities after training."""
+
+    dataset: str
+    image_id: str
+    auc_roc: float | None
+    auc_pr: float | None
+    brier: float
+    thin_sensitivity: float | None
+    thick_sensitivity: float | None
+
+
+def fill_evaluation(
+    conn: sqlite3.Connection, run_id: str, records: Iterable[EvaluationRecord]
+) -> None:
+    """Write evaluation metrics into the existing single-pass rows of ``run_id``.
+
+    All rows are updated in one transaction. A record without exactly one
+    matching row raises ``ValueError`` and nothing is written.
+    """
+    with conn:
+        for r in records:
+            updated = conn.execute(
+                "UPDATE per_image_metrics SET auc_roc = ?, auc_pr = ?, brier = ?, "
+                "thin_sensitivity = ?, thick_sensitivity = ? "
+                "WHERE run_id = ? AND dataset = ? AND image_id = ? AND prediction_mode = 'single'",
+                (
+                    r.auc_roc,
+                    r.auc_pr,
+                    r.brier,
+                    r.thin_sensitivity,
+                    r.thick_sensitivity,
+                    run_id,
+                    r.dataset,
+                    r.image_id,
+                ),
+            ).rowcount
+            if updated != 1:
+                raise ValueError(
+                    f"run {run_id} has {updated} single-pass rows for {r.dataset} image "
+                    f"{r.image_id}, expected 1"
+                )
