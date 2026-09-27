@@ -76,6 +76,15 @@ def history(best: float) -> list[EpochRecord]:
     ]
 
 
+def assign(conn: sqlite3.Connection, run_id: str, folds: dict[int, dict[str, float]]) -> None:
+    # Each fold tests its own images and trains on the rest.
+    for fold, tested in folds.items():
+        for image_id in ("21", "22", "23"):
+            role = "test" if image_id in tested else "train"
+            row = {"run_id": run_id, "fold": fold, "dataset": "drive", "image_id": image_id}
+            insert(conn, "fold_assignments", {**row, "role": role})
+
+
 @pytest.fixture
 def db(conn: sqlite3.Connection) -> sqlite3.Connection:
     for image_id in ("21", "22", "23"):
@@ -96,6 +105,7 @@ def db(conn: sqlite3.Connection) -> sqlite3.Connection:
         )
     for run_id, folds in DICE.items():
         insert_run(conn, replace(MANIFEST, run_id=run_id, variant=VARIANTS[run_id]))
+        assign(conn, run_id, folds)
         for fold, images in folds.items():
             start_fold(conn, run_id, fold, T0)
             record = FoldRecord(
@@ -207,6 +217,7 @@ def add_finished_run(
     conn: sqlite3.Connection, run_id: str, folds: dict[int, dict[str, float]], data_hash: str
 ) -> None:
     insert_run(conn, replace(MANIFEST, run_id=run_id, variant="dice_only", data_hash=data_hash))
+    assign(conn, run_id, folds)
     for fold, images in folds.items():
         start_fold(conn, run_id, fold, T0)
         record = FoldRecord(
@@ -223,13 +234,24 @@ def add_finished_run(
     finish_run(conn, run_id, T1)
 
 
-def test_variant_comparison_pairs_only_matching_folds_and_data(db: sqlite3.Connection) -> None:
+def test_variant_comparison_pairs_only_identical_folds_and_data(db: sqlite3.Connection) -> None:
     # "shifted" held image 21 out in fold 2, where the baseline held it out in
-    # fold 1. "elsewhere" trained on other data. Neither pairing is matched.
+    # fold 1. Images 22 and 23 keep their fold numbers, but the models behind
+    # them trained on different images, so nothing is paired. "elsewhere" has
+    # the baseline's folds but trained on other data.
     add_finished_run(db, "shifted", {1: {"22": 0.5}, 2: {"21": 0.5, "23": 0.5}}, "data")
     add_finished_run(db, "elsewhere", DICE["ablate"], "other data")
     rows = query(db, "03_variant_comparison")
     pairs = {(r["other_run_id"], r["image_id"]) for r in rows}
-    assert {i for run, i in pairs if run == "shifted"} == {"22", "23"}
-    assert not {i for run, i in pairs if run == "elsewhere"}
+    assert {i for run, i in pairs if run == "shifted"} == set()
+    assert {i for run, i in pairs if run == "elsewhere"} == set()
     assert {i for run, i in pairs if run == "ablate"} == {"21", "22", "23"}
+
+
+def test_variant_comparison_notices_a_changed_validation_split(db: sqlite3.Connection) -> None:
+    # Same test folds, but one image moved from training to validation.
+    db.execute(
+        "UPDATE fold_assignments SET role = 'val' "
+        "WHERE run_id = 'ablate' AND fold = 1 AND image_id = '23'"
+    )
+    assert query(db, "03_variant_comparison") == []

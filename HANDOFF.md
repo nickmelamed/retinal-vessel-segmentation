@@ -12,7 +12,8 @@ Phase 3 is merged into `main` (PR #6, merge commit `869778a`) and ticked in
 PROGRESS.md. CI and the Claude review passed. Two items from that review
 were fixed on `fix/review-followups`: `evaluate` refuses non-finite or
 out-of-range probabilities, which SQLite would otherwise store as NULL, and
-query 03 pairs images only on matching folds and data hashes. Check with
+query 03 pairs two runs only when their fold assignments and data
+hashes are identical. Check with
 `gh pr list` that that branch has merged too.
 
 What phase 3 added:
