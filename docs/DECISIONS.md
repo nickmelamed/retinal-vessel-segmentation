@@ -210,7 +210,11 @@ Training and test ids do not overlap, so `(dataset, image_id)` is unique.
 
 When the green channel is switched off, preprocessing converts the image to
 grayscale, since CLAHE needs a single channel. Pixels outside the FOV are
-set to 0 after every step, so the black border never enters the statistics.
+set to 0 before CLAHE and again at the end, so the output depends only on
+pixels inside the FOV. The owner chose this after the phase 1 review found
+that CLAHE's tile histograms saw the raw border. It matters for external
+validation (section 5), since STARE and CHASE_DB1 borders differ from
+DRIVE's and must not change what the model sees inside the FOV.
 
 Patch batches carry the FOV patch as a third element, so the phase 2 loss
 can ignore pixels outside the FOV. Every random choice in patch sampling is

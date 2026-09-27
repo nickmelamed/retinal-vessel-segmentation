@@ -2,8 +2,9 @@
 
 The steps run in a fixed order: green channel, CLAHE, scaling to [0, 1], and
 standardization with the FOV's own mean and SD. Each can be switched off in
-config for ablations. Pixels outside the FOV are always set to 0, so the
-black border never enters the statistics or the model input.
+config for ablations. Pixels outside the FOV are set to 0 before CLAHE and
+again at the end, so the output depends only on pixels inside the FOV and
+whatever the border holds never reaches CLAHE, the statistics, or the model.
 """
 
 import cv2
@@ -36,6 +37,7 @@ def preprocess(image: np.ndarray, fov: np.ndarray, cfg: PreprocessConfig) -> np.
         channel = np.ascontiguousarray(image[..., GREEN])
     else:
         channel = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    channel = np.where(fov, channel, 0).astype(np.uint8)
     if cfg.clahe:
         clahe = cv2.createCLAHE(clipLimit=cfg.clahe_clip_limit, tileGridSize=cfg.clahe_tile_grid)
         channel = clahe.apply(channel)

@@ -83,10 +83,12 @@ def test_pixels_outside_the_fov_are_zero_for_every_setting() -> None:
         assert not out[~fov()].any()
 
 
-def test_pixels_outside_the_fov_do_not_change_the_result() -> None:
+@pytest.mark.parametrize("clahe", [False, True])
+@pytest.mark.parametrize("green_channel", [False, True])
+def test_pixels_outside_the_fov_do_not_change_the_result(clahe: bool, green_channel: bool) -> None:
     a, b = image(0), image(1)
     b[fov()] = a[fov()]
-    cfg = config(clahe=False)
+    cfg = config(clahe=clahe, green_channel=green_channel)
     np.testing.assert_array_equal(preprocess(a, fov(), cfg), preprocess(b, fov(), cfg))
 
 
