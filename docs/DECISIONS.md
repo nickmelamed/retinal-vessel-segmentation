@@ -223,3 +223,16 @@ pipeline deterministic even with parallel maps.
 
 The within-FOV vessel fraction counts labeled pixels inside the FOV only.
 The real DRIVE labels mark a few pixels outside it.
+
+## D-018 `make check-data` writes the `images` table (2026-09-26)
+
+The owner chose to have `check_data.py` write the `images` rows, instead of
+leaving them for training in phase 2. SPEC section 6 gives the script the
+dataset stats, and section 4 says the within-FOV vessel fraction is quoted
+as computed, so the computed values belong in the database that documents
+draw numbers from (rule 2). Once the checksums pass, the script loads every
+image through the DRIVE loader and writes its row to `results/experiments.db`,
+or the path given with `--db`. Repeating the command adds nothing. A stored
+row that no longer matches the data is an error, like a checksum mismatch
+(D-004). The pooled fraction is only logged, and it goes into documents
+through the tables generated from the database.
