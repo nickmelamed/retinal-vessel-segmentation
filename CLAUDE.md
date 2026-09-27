@@ -68,7 +68,8 @@ make agent-check    # the fast checks the Stop hook runs
 - `tests/`: synthetic fixtures only, never real data.
 - `.claude/rules/`: standards for Python, SQL, R, tests, and writing that load
   when you touch those files.
-- `.claude/skills/`: `/finish-phase`, `/colab-run`, `/release`.
+- `.claude/skills/`: `/finish-phase`, `/colab-run`, `/release`,
+  `/scratch-train`.
 
 ## How to work here
 
