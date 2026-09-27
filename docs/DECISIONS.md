@@ -170,3 +170,14 @@ The checksum file now always defaults to the committed
 unless `--init` is passed, and an existing file is still never changed. The
 committed file covers section 17's first-run case. Found by the Claude review
 on PR #1.
+
+## D-015 Abnormality notes are quoted from the site (2026-09-26)
+
+SPEC section 4 used to paraphrase the official notes for the seven images
+with abnormalities. For example, it gave image 26's note as "atrophy around
+the optic disc", where the site says "atrophy around optic disk". The
+`images.abnormality_note` column must hold the site's own words, so the
+owner chose to replace the paraphrase with the text of
+https://drive.grand-challenge.org/ as retrieved on 2026-09-26. The loader
+stores the same strings. If the site's wording changes, this entry and the
+loader change together.
