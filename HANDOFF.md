@@ -11,7 +11,7 @@ phase 1 merges.
 Phase 1 is finished on `phase/1-data` and ticked in PROGRESS.md. It is not
 pushed yet, and the pull request (merge commit, not squash) waits for the
 owner. Check `gh pr list`, and cut `phase/2-model` from `main` once it has
-merged. `make ci` passes on the branch: 218 tests at 97.82% coverage.
+merged. `make ci` passes on the branch: 220 tests at 97.83% coverage.
 
 What phase 1 added:
 
@@ -90,6 +90,14 @@ runs), and 17 (run manifest) give the details.
 - What counts as an epoch: `patches.per_epoch` patches with seed
   `seed + epoch` is the simplest reading. Confirm it, and the patience for
   early stopping.
+- Folds are seeded with the top-level `seed`, which also seeds patches and
+  training. Section 7 needs every ablation to share one fold assignment, and
+  today that holds only because each variant YAML copies the same seed.
+  Changing the training seed, for example to measure rerun variance, would
+  reshuffle the split. The Claude review on PR #3 suggested a separate
+  `folds.seed`, or a check that runs of the same CV agree on
+  `fold_assignments`. This touches section 5, so it is the owner's call
+  before phase 2 writes real runs.
 - Confirm that the VS Code Colab extension's runtimes set
   `COLAB_RELEASE_TAG`, which `compute_platform` relies on. Colab installs
   with `uv sync --locked` (D-011). Reported runs use a T4 (D-013).
