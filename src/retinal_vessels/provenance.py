@@ -242,16 +242,19 @@ def build_manifest(
     seed: int,
     deterministic_ops: bool,
     repo: Path,
-    checksums: Mapping[str, str],
+    data: ChecksumReport,
     env: Mapping[str, Any] | None = None,
     started_at: datetime | None = None,
 ) -> RunManifest:
     """Collect the manifest for a run that is starting now.
 
-    ``checksums`` are the verified data entries the run uses. ``env`` defaults
-    to :func:`environment`, and tests pass their own to avoid importing
-    TensorFlow.
+    ``data`` is the verification report for the data the run uses, and a
+    report with any problem raises ``ValueError``, so a run never records the
+    hash of data that failed its checksums. ``env`` defaults to
+    :func:`environment`, and tests pass their own to avoid importing TensorFlow.
     """
+    if not data.ok:
+        raise ValueError(f"data failed verification: {data.problems()[:3]}")
     state = git_state(repo)
     if state.dirty:
         logger.warning("Working tree is dirty. Run %s cannot be reported.", run_id)
@@ -263,7 +266,7 @@ def build_manifest(
         seed=seed,
         git_commit=state.commit,
         git_dirty=state.dirty,
-        data_hash=data_hash(checksums),
+        data_hash=data_hash(data.checked),
         deterministic_ops=deterministic_ops,
         started_at=utc_timestamp(started_at),
         environment=dict(env if env is not None else environment()),

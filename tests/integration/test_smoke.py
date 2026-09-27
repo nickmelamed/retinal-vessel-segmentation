@@ -14,7 +14,13 @@ from pathlib import Path
 import pytest
 
 from retinal_vessels.db import SCHEMA_VERSION, connect, create_schema, schema_version
-from retinal_vessels.provenance import build_manifest, new_run_id, read_checksums, write_manifest
+from retinal_vessels.provenance import (
+    build_manifest,
+    new_run_id,
+    read_checksums,
+    verify_checksums,
+    write_manifest,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 CHECK_DATA = REPO / "scripts" / "check_data.py"
@@ -52,26 +58,26 @@ def test_pipeline_is_wired_end_to_end(synthetic_data_root: Path, tmp_path: Path)
     (synthetic_data_root / "DRIVE").rename(moved)
     assert _check_data(synthetic_data_root).returncode == 1
     assert _check_data(synthetic_data_root, drive_dir=moved).returncode == 0
+    verified = verify_checksums(read_checksums(manifest_path), {"DRIVE": moved})
+    assert verified.ok
 
     (moved / "test" / "images" / "05_test.tif").write_bytes(b"corrupt")
     corrupt = _check_data(synthetic_data_root, drive_dir=moved)
     assert corrupt.returncode == 1
     assert "checksum mismatch: DRIVE/test/images/05_test.tif" in corrupt.stderr
     assert manifest_path.read_bytes() == written
+    corrupted = verify_checksums(read_checksums(manifest_path), {"DRIVE": moved})
 
     with closing(connect(tmp_path / "results" / "experiments.db")) as conn:
         create_schema(conn)
         assert schema_version(conn) == SCHEMA_VERSION
 
-    manifest = build_manifest(
-        run_id=new_run_id(),
-        variant="smoke",
-        config={"variant": "smoke"},
-        seed=0,
-        deterministic_ops=False,
-        repo=REPO,
-        checksums=read_checksums(manifest_path),
+    run = dict(
+        variant="smoke", config={"variant": "smoke"}, seed=0, deterministic_ops=False, repo=REPO
     )
+    with pytest.raises(ValueError, match="failed verification"):
+        build_manifest(run_id=new_run_id(), data=corrupted, **run)  # type: ignore[arg-type]
+    manifest = build_manifest(run_id=new_run_id(), data=verified, **run)  # type: ignore[arg-type]
     saved = json.loads(write_manifest(manifest, tmp_path / "results").read_text())
     assert saved["variant"] == "smoke"
     assert len(saved["git_commit"]) == 40

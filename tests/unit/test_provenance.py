@@ -194,7 +194,7 @@ def test_manifest_captures_commit_dirty_flag_and_data_checksum(
         seed=42,
         deterministic_ops=True,
         repo=repo,
-        checksums=checksums,
+        data=verify_checksums(checksums, drive),
         env=FAKE_ENV,
         started_at=datetime(2026, 9, 26, 12, tzinfo=UTC),
     )
@@ -259,3 +259,18 @@ def test_timestamps_match_the_schema_format() -> None:
         "2026-09-26T15:30:15Z"
     )
     assert utc_timestamp().endswith("Z")
+
+
+def test_manifest_refuses_data_that_failed_verification(repo: Path) -> None:
+    failed = ChecksumReport(checked={"DRIVE/a": "a" * 64}, mismatched=["DRIVE/a"])
+    with pytest.raises(ValueError, match="failed verification"):
+        build_manifest(
+            run_id="r1",
+            variant="baseline",
+            config={},
+            seed=0,
+            deterministic_ops=False,
+            repo=repo,
+            data=failed,
+            env=FAKE_ENV,
+        )
