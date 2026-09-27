@@ -188,9 +188,9 @@ This refines SPEC section 5, with the owner's approval. `make_folds` puts
 DRIVE's abnormal training images, 25, 26, and 32, in three different test
 folds, and shuffles the other 17 into the remaining test slots with the same
 seed. With a plain shuffle, two or three of them could share a fold, and that
-fold's threshold and scores would then be driven by pathology. Every image is
-still a test image exactly once, each fold still has 4 test, 2 validation,
-and 14 training images, and the split is still by whole image. Validation
+fold's threshold and scores would then be driven by pathology. The split is
+still by whole image, every image is a test image exactly once, and each
+fold has 4 test, 2 validation, and 14 training images. Validation
 images are drawn at random from each fold's 16 non-test images.
 
 The folds depend only on the set of image ids and the seed, never on their

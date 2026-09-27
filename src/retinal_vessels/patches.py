@@ -1,9 +1,8 @@
 """Sample augmented training patches with ``tf.data`` (SPEC section 7).
 
-Every random choice, from the patch centers to the augmentation of each
-patch, is drawn up front from one NumPy generator seeded by the caller. The
-``tf.data`` pipeline itself is then deterministic, so the same seed gives
-the same patches in the same order even with parallel maps.
+Every random choice is drawn up front from one NumPy generator seeded by
+the caller, so the same seed gives the same patches in the same order even
+with parallel ``tf.data`` maps.
 """
 
 from collections.abc import Sequence
@@ -16,7 +15,7 @@ from retinal_vessels.config import PatchesConfig
 
 IMAGE, LABEL, FOV = 0, 1, 2
 N_ROTATIONS = 4
-# Flips and rotations are symmetries of the fundus image, so each is equally likely.
+# A flipped fundus is as plausible as the original, so flip half the time.
 FLIP_PROBABILITY = 0.5
 
 
@@ -91,8 +90,8 @@ def make_patch_dataset(
     """Return a batched ``tf.data.Dataset`` of ``cfg.per_epoch`` augmented patches.
 
     ``images`` is (N, H, W) float32 from ``preprocess``, and ``labels`` and
-    ``fovs`` are (N, H, W) bool. Each element is ``(x, y, w)``, batched, with
-    each of shape (batch, size, size, 1) float32. ``y`` is the vessel label and
+    ``fovs`` are (N, H, W) bool. Each batch is ``(x, y, w)``, all
+    (batch, size, size, 1) float32. ``y`` is the vessel label and
     ``w`` is the FOV, which can serve as a per-pixel loss weight. Patches
     reaching past the image edge are padded with 0. Flips and rotations move
     all three together. Brightness and contrast jitter touch ``x`` only, and

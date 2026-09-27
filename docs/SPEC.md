@@ -21,7 +21,7 @@ The non-negotiable rules are in CLAUDE.md.
 - 40 color fundus images from a diabetic retinopathy screening program in the Netherlands; 33 show no sign of diabetic retinopathy, 7 show mild early signs. Canon CR5 non-mydriatic 3CCD camera, 45° field of view, captured at 768×584 pixels and cropped around the FOV to 565×584 (W×H), 8 bits per channel. **Every image has been JPEG compressed** by the dataset providers; compression can blur the finest vessels, so note it under limitations.
 - Official split: 20 training (ids 21–40) and 20 test (ids 1–20). Every image has a circular field-of-view (FOV) mask.
 - **Test-set vessel annotations are withheld** on the official site; predictions can be submitted there for scoring (Dice within the FOV mask). Only the 20 training images have labels we can use.
-- **Images with abnormalities, as listed on the official site** (quoted verbatim, retrieved 2026-09-26, D-015): training images **25**, **26**, and **32**, and test images 03, 08, 14, and 17. Store these notes exactly as written as image metadata (section 8); don't paraphrase them into diagnoses beyond what the site states.
+- **Images with abnormalities, as listed on the official site** (retrieved 2026-09-26, D-015): training images **25**, **26**, and **32**, and test images 03, 08, 14, and 17. Store these notes word for word as image metadata (section 8), and don't turn them into diagnoses beyond what the site states.
   ```
   25_training: pigment epithelium changes, probably butterfly maculopathy with pigmented scar in fovea, or choroidiopathy, no diabetic retinopathy or other vascular abnormalities.
   26_training: background diabetic retinopathy, pigmentary epithelial atrophy, atrophy around optic disk

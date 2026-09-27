@@ -1,8 +1,7 @@
 """Load DRIVE (Staal et al., 2004) from its official directory layout.
 
 The layout is checked file by file before anything is read (SPEC section 4),
-so a partial or misplaced download fails with a list of what is wrong rather
-than training on whatever happened to be there.
+so a partial or misplaced download fails with a list of what is wrong.
 """
 
 import logging
