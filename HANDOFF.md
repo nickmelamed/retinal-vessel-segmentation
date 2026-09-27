@@ -3,14 +3,14 @@
 This note is for a new Claude Code session that will plan phase 3
 (evaluation) with the owner. Read CLAUDE.md first, then PROGRESS.md, then
 SPEC sections 5, 8, and 14, and D-020 in docs/DECISIONS.md. Plan only. Wait
-for the owner's approval before building, and do the work on a
-`phase/3-evaluation` branch cut from `main` after phase 2 merges.
+for the owner's approval before building. Do the work on the
+`phase/3-evaluation` branch, which was cut from `main` after phase 2 merged
+and so far holds only an update to this note.
 
 ## Where things stand (2026-09-27)
 
-Phase 2 is finished on `phase/2-model` and ticked in PROGRESS.md. Check
-`gh pr list` to see whether its pull request has merged. `make ci` passes on
-the branch.
+Phase 2 is merged into `main` (PR #5, merge commit `18fcc01`) and ticked in
+PROGRESS.md. CI and the Claude review passed on its final commit.
 
 What phase 2 added:
 
@@ -40,7 +40,10 @@ What phase 2 added:
   the AUC, Brier, thin/thick, and uncertainty columns NULL.
 - Resume rules (D-020). Only unfinished runs from a clean tree, matching on
   variant, config hash, commit, and data hash, are resumed, and only from a
-  clean tree. Stored fold assignments and the environment must match.
+  clean tree. Stored fold assignments and the environment must match, and
+  each complete fold's checkpoint must match its stored SHA-256 and have all
+  its prediction files present, so restore both `results/` and `models/`
+  before resuming on a new machine.
 - `scripts/verify_checkpoints.py` (`make verify-checkpoints`) and
   `notebooks/colab_runner.ipynb`.
 - `set_seed` now also seeds Keras.
@@ -96,11 +99,19 @@ Items left open from the phase 2 reviews, for the owner to decide:
 - The ambiguity and resume tests all run in one process. The smoke test runs
   `train` twice in subprocesses, and comparing those two runs' thresholds would
   also test determinism across processes.
-- `verify_checkpoints.py` could log how many folds are complete, so a partial
-  download is not mistaken for a whole run.
-- The commit message of `ca68ad8` ends with a sentence about the author's own
-  checking, which the style review flagged. Changing it means rewriting local
-  history before the push. It was left alone.
+- `verify_checkpoints.py` can pass on a partial run. By default it checks the
+  run with the largest `run_id`, and rerunning the notebook's train cell after
+  a run finishes starts a new run, so verification would then check the new
+  run's few complete folds and pass. Options are to log how many folds are
+  complete, to require a finished run unless a flag says otherwise, or both.
+  Raised by the spec review and again by the Claude review on PR #5.
+- The `real` mode of `/scratch-train` trains on the real DRIVE images and
+  leaves per-image metrics for real held-out images in a scratch database the
+  agent can read, and its report includes fold log lines with validation Dice
+  and thresholds. It breaks no rule today, but it makes held-out results easy
+  to see during development (rule 3). Options are to drop the real mode, or
+  to keep it as a pipeline check that reports only whether it ran and
+  verified. Raised by the Claude review on PR #5.
 - First Colab session: confirm that `COLAB_RELEASE_TAG` is set (the notebook
   prints it), that a T4 is assigned, and that `enable_op_determinism` raises
   no unimplemented-determinism error on the GPU for these ops.
