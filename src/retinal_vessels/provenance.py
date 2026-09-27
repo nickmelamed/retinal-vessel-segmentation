@@ -129,15 +129,21 @@ def verify_checksums(expected: Mapping[str, str], locations: Mapping[str, Path])
 
 
 def check_or_write_checksums(
-    manifest_path: Path, locations: Mapping[str, Path]
+    manifest_path: Path, locations: Mapping[str, Path], *, write_missing: bool = False
 ) -> tuple[bool, ChecksumReport]:
-    """Verify data against ``manifest_path``, or write it if it does not exist yet.
+    """Verify data against ``manifest_path``, or create it when asked to.
 
-    An existing manifest is never modified. Returns whether the manifest was
-    written and the verification report.
+    A missing manifest raises ``FileNotFoundError`` unless ``write_missing`` is
+    set, so a mistyped path can never pass by writing a fresh manifest from
+    whatever is on disk. An existing manifest is never modified. Returns
+    whether the manifest was written and the verification report.
     """
     if manifest_path.exists():
         return False, verify_checksums(read_checksums(manifest_path), locations)
+    if not write_missing:
+        raise FileNotFoundError(
+            f"checksum manifest not found at {manifest_path}. Pass --init to create it."
+        )
     missing_dirs = [str(p) for p in locations.values() if not p.is_dir()]
     if missing_dirs:
         raise FileNotFoundError(f"cannot write checksums, directory not found: {missing_dirs}")

@@ -35,10 +35,11 @@ make check-data
 ```
 
 This hashes every file under the DRIVE directory and compares it with
-`data/CHECKSUMS.sha256`, which is committed. Any missing, changed, or extra
-file is listed by name and the command fails. Hidden files such as
-`.DS_Store` are ignored. Every run records a hash of the verified checksums,
-so results can be traced to the exact data they used.
+`data/CHECKSUMS.sha256`, which is committed. The comparison is always against
+the committed file, even when `DRIVE_DIR` points somewhere else. Any missing,
+changed, or extra file is listed by name and the command fails. Hidden files
+such as `.DS_Store` are ignored. Every run records a hash of the verified
+checksums, so results can be traced to the exact data they used.
 
 STARE and CHASE_DB1 are added in phase 7, after their terms of use are
 checked.

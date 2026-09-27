@@ -138,7 +138,7 @@ def test_verify_rejects_a_dataset_the_manifest_does_not_list(drive: dict[str, Pa
 
 def test_check_or_write_writes_a_missing_manifest(tmp_path: Path, drive: dict[str, Path]) -> None:
     path = tmp_path / "CHECKSUMS.sha256"
-    written, report = check_or_write_checksums(path, drive)
+    written, report = check_or_write_checksums(path, drive, write_missing=True)
     assert written
     assert report.ok
     assert read_checksums(path) == compute_checksums(drive)
@@ -146,22 +146,34 @@ def test_check_or_write_writes_a_missing_manifest(tmp_path: Path, drive: dict[st
 
 def test_check_or_write_never_overwrites(tmp_path: Path, drive: dict[str, Path]) -> None:
     path = tmp_path / "CHECKSUMS.sha256"
-    check_or_write_checksums(path, drive)
+    check_or_write_checksums(path, drive, write_missing=True)
     before = path.read_bytes()
     (drive["DRIVE"] / "test/mask/01_test_mask.gif").write_bytes(b"changed")
     written, report = check_or_write_checksums(path, drive)
     assert not written
     assert report.mismatched == ["DRIVE/test/mask/01_test_mask.gif"]
     assert path.read_bytes() == before
+    written, _ = check_or_write_checksums(path, drive, write_missing=True)
+    assert not written
+    assert path.read_bytes() == before
+
+
+def test_missing_manifest_fails_unless_writing_is_asked_for(
+    tmp_path: Path, drive: dict[str, Path]
+) -> None:
+    path = tmp_path / "CHECKSUMS.sha256"
+    with pytest.raises(FileNotFoundError, match="--init"):
+        check_or_write_checksums(path, drive)
+    assert not path.exists()
 
 
 def test_check_or_write_refuses_to_write_from_nothing(tmp_path: Path) -> None:
     path = tmp_path / "CHECKSUMS.sha256"
     with pytest.raises(FileNotFoundError):
-        check_or_write_checksums(path, {"DRIVE": tmp_path / "nowhere"})
+        check_or_write_checksums(path, {"DRIVE": tmp_path / "nowhere"}, write_missing=True)
     (tmp_path / "empty").mkdir()
     with pytest.raises(ValueError, match="no files"):
-        check_or_write_checksums(path, {"DRIVE": tmp_path / "empty"})
+        check_or_write_checksums(path, {"DRIVE": tmp_path / "empty"}, write_missing=True)
     assert not path.exists()
 
 

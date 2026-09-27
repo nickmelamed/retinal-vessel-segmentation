@@ -28,12 +28,15 @@ CHECK_DATA = REPO / "scripts" / "check_data.py"
 pytestmark = [pytest.mark.smoke, pytest.mark.slow]
 
 
-def _check_data(data_root: Path, drive_dir: Path | None = None) -> subprocess.CompletedProcess[str]:
+def _check_data(
+    data_root: Path, drive_dir: Path | None = None, init: bool = False
+) -> subprocess.CompletedProcess[str]:
     env = {k: v for k, v in os.environ.items() if k != "DRIVE_DIR"}
     if drive_dir is not None:
         env["DRIVE_DIR"] = str(drive_dir)
+    args = ["--data-root", str(data_root), "--checksums", str(data_root / "CHECKSUMS.sha256")]
     return subprocess.run(
-        [sys.executable, str(CHECK_DATA), "--data-root", str(data_root)],
+        [sys.executable, str(CHECK_DATA), *args, *(["--init"] if init else [])],
         capture_output=True,
         text=True,
         env=env,
@@ -43,7 +46,12 @@ def _check_data(data_root: Path, drive_dir: Path | None = None) -> subprocess.Co
 def test_pipeline_is_wired_end_to_end(synthetic_data_root: Path, tmp_path: Path) -> None:
     manifest_path = synthetic_data_root / "CHECKSUMS.sha256"
 
-    first = _check_data(synthetic_data_root)
+    missing = _check_data(synthetic_data_root)
+    assert missing.returncode == 1
+    assert "--init" in missing.stderr
+    assert not manifest_path.exists()
+
+    first = _check_data(synthetic_data_root, init=True)
     assert first.returncode == 0, first.stderr
     assert "Wrote 100 files" in first.stderr
     written = manifest_path.read_bytes()

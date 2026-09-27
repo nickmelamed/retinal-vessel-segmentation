@@ -144,3 +144,15 @@ available Colab GPU and the cheapest in compute units, and it matches
 SPEC section 16. If T4s become hard to get, the small total compute means
 every reported run can be repeated on one other GPU type, keeping the
 same-hardware rule.
+
+## D-014 Writing checksums needs `--init` (2026-09-26)
+
+This amends D-004. `check_data.py` used to look for the checksum file under
+`--data-root` and write one if it was missing. On Colab, with the data in
+another directory, that would write a fresh manifest from whatever was on
+disk and pass without checking anything, which defeats SPEC section 16 step 3.
+The checksum file now always defaults to the committed
+`data/CHECKSUMS.sha256`, wherever the data lives. A missing file is an error
+unless `--init` is passed, and an existing file is still never changed. The
+committed file covers section 17's first-run case. Found by the Claude review
+on PR #1.
