@@ -8,9 +8,12 @@ building. Cut `phase/4-ship` from `main` once phase 3 has merged.
 
 ## Where things stand (2026-09-27)
 
-Phase 3 is complete on `phase/3-evaluation` and ticked in PROGRESS.md. Its
-pull request had not been opened when this note was written. Check with
-`gh pr list` and the owner.
+Phase 3 is merged into `main` (PR #6, merge commit `869778a`) and ticked in
+PROGRESS.md. CI and the Claude review passed. Two items from that review
+were fixed on `fix/review-followups`: `evaluate` refuses non-finite or
+out-of-range probabilities, which SQLite would otherwise store as NULL, and
+query 03 pairs two runs only when their fold assignments and data hashes are
+identical. Check with `gh pr list` that that branch has merged too.
 
 What phase 3 added:
 
@@ -90,6 +93,12 @@ Raise these at the start of planning, before any other phase 4 work.
 - `make snapshot` (`scripts/snapshot_db.py`, which exports reported runs to
   `results/release/`, metrics only) is not built yet. Decide what it
   exports.
+- Skeleton radii take a few discrete values (1, about 1.41, 2, about 2.24,
+  and so on), and each fold's edge snaps to one of them, so folds on the
+  real data may end up with different edges. Then "thin" means a different
+  set of vessels in each fold. `evaluation.json` records every fold's edge.
+  The thin/thick chart and the README must state the edges, and say plainly
+  if they differ. Raised by the Claude review of PR #6.
 - Figures need a plotting module (`retinal_vessels.figures`, SPEC section
   11). Load the dataviz skill before writing chart code.
 

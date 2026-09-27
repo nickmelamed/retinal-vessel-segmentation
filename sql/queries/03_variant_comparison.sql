@@ -4,8 +4,11 @@
 -- One row per image for every pair of a finished baseline run and a
 -- finished run of another variant. Each delta is the other variant minus
 -- the baseline, so a positive Dice delta means the other variant did
--- better on that image. The folds are shared across variants (D-019), so
--- both runs held the image out.
+-- better on that image. Folds are meant to be shared across variants
+-- (D-019), but a run from an older config could differ. Two runs are paired
+-- only when their fold assignments are identical, every fold with the same
+-- training, validation, and test images, and they trained on the same data,
+-- so the models behind each paired image saw the same images.
 
 SELECT
     rb.run_id AS baseline_run_id,
@@ -39,4 +42,35 @@ WHERE
     AND ro.variant != 'baseline'
     AND rb.finished_at IS NOT NULL
     AND ro.finished_at IS NOT NULL
+    AND rb.data_hash = ro.data_hash
+    AND NOT EXISTS (
+        SELECT
+            fa.fold,
+            fa.image_id,
+            fa.role
+        FROM fold_assignments AS fa
+        WHERE fa.run_id = rb.run_id
+        EXCEPT
+        SELECT
+            fa.fold,
+            fa.image_id,
+            fa.role
+        FROM fold_assignments AS fa
+        WHERE fa.run_id = ro.run_id
+    )
+    AND NOT EXISTS (
+        SELECT
+            fa.fold,
+            fa.image_id,
+            fa.role
+        FROM fold_assignments AS fa
+        WHERE fa.run_id = ro.run_id
+        EXCEPT
+        SELECT
+            fa.fold,
+            fa.image_id,
+            fa.role
+        FROM fold_assignments AS fa
+        WHERE fa.run_id = rb.run_id
+    )
 ORDER BY ro.variant, rb.run_id, ro.run_id, b.image_id;
