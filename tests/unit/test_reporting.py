@@ -7,9 +7,7 @@ from types import ModuleType
 
 import pytest
 
-from retinal_vessels.config import ReportedRunsConfig
 from retinal_vessels.db import set_reported
-from retinal_vessels.provenance import sha256_file
 from retinal_vessels.reporting import (
     ReportError,
     checkpoint_problems,
@@ -17,11 +15,9 @@ from retinal_vessels.reporting import (
     reportability_problems,
 )
 from tests.fixtures.database import RUN, insert
-from tests.fixtures.evaluated_run import REPO, RUN_ID, Finished
+from tests.fixtures.evaluated_run import REPO, REQUIRED, RUN_ID, TAG, Finished, write_checkpoints
 
 SCRIPT = REPO / "scripts" / "mark_reported.py"
-REQUIRED = ReportedRunsConfig(gpu_type="Tesla T4", compute_platform="colab")
-TAG = "v0.1.0-rc.1"
 
 
 def load_script() -> ModuleType:
@@ -39,31 +35,6 @@ def restore_root_logger() -> Iterator[None]:
     yield
     root.handlers = handlers
     root.setLevel(level)
-
-
-def write_checkpoints(finished: Finished) -> None:
-    for fold in finished.folds:
-        path = finished.dirs.checkpoint(RUN_ID, fold.number)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(f"weights {fold.number}".encode())
-        with finished.conn:
-            finished.conn.execute(
-                "UPDATE fold_status SET checkpoint_sha256 = ? WHERE run_id = ? AND fold = ?",
-                (sha256_file(path), RUN_ID, fold.number),
-            )
-
-
-@pytest.fixture
-def reportable(finished: Finished) -> Finished:
-    """The fixture's run as if trained on a Colab T4 from a tagged commit, then evaluated."""
-    with finished.conn:
-        finished.conn.execute(
-            "UPDATE runs SET git_tag = ?, gpu_type = ?, compute_platform = ? WHERE run_id = ?",
-            (TAG, REQUIRED.gpu_type, REQUIRED.compute_platform, RUN_ID),
-        )
-    write_checkpoints(finished)
-    finished.evaluate()
-    return finished
 
 
 def is_reported(finished: Finished) -> int:

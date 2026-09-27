@@ -8,13 +8,21 @@ listed, so one attempt shows everything that is wrong.
 """
 
 import json
+import logging
+import os
+import re
+import shutil
 import sqlite3
+from contextlib import closing
+from pathlib import Path
 
 from retinal_vessels.config import ReportedRunsConfig
-from retinal_vessels.db import fold_statuses, run_query, set_reported
+from retinal_vessels.db import connect, create_schema, fold_statuses, run_query, set_reported
 from retinal_vessels.evaluate import EVALUATION_NAME
 from retinal_vessels.provenance import sha256_file
 from retinal_vessels.train import OutputDirs
+
+logger = logging.getLogger(__name__)
 
 LEAKAGE_AUDIT = "04_leakage_audit"
 
@@ -118,3 +126,98 @@ def mark_reported(
     if problems:
         raise ReportError(f"run {run_id} cannot be reported:\n  " + "\n  ".join(problems))
     set_reported(conn, run_id)
+
+
+# Tables copied whole into a snapshot. They describe the data, not a run.
+SNAPSHOT_WHOLE = ("images",)
+# Filled by create_schema in the new database.
+SNAPSHOT_SKIP = ("schema_version",)
+# A release tag also names the snapshot file, so it must be a safe file name.
+RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$")
+
+
+def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    return [row[1] for row in conn.execute(f"PRAGMA main.table_info({table})")]
+
+
+def _copy_reported(conn: sqlite3.Connection) -> dict[str, int]:
+    tables = [
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM main.sqlite_master WHERE type = 'table' ORDER BY name"
+        )
+        if row[0] not in SNAPSHOT_SKIP
+    ]
+    copied = {}
+    for table in tables:
+        columns = _columns(conn, table)
+        names = ", ".join(columns)
+        if table in SNAPSHOT_WHOLE:
+            where = ""
+        elif "run_id" in columns:
+            where = " WHERE run_id IN (SELECT run_id FROM src.runs WHERE is_reported = 1)"
+        else:
+            # A new table must be placed in one group or the other on purpose.
+            raise ReportError(f"the snapshot has no rule for table {table}")
+        cursor = conn.execute(
+            f"INSERT INTO main.{table} ({names}) SELECT {names} FROM src.{table}{where}"
+        )
+        copied[table] = cursor.rowcount
+    return copied
+
+
+def write_snapshot(source: Path, results_dir: Path, out_dir: Path, tag: str) -> Path:
+    """Export the reported runs of ``source`` to ``out_dir/experiments_<tag>.db``.
+
+    The snapshot has the full schema, with every row of ``images`` and the
+    rows of reported runs from every other table, so the R report and the
+    results site can be rebuilt without the data or a GPU (SPEC section 12).
+    It holds metrics and metadata only. Each run's ``evaluation.json`` is
+    copied to ``out_dir/<tag>/<run_id>/``, since the reliability table and
+    fold edges live only there. An existing snapshot is never replaced.
+    Raises ``ReportError`` if there is no reported run or a check fails.
+    """
+    if not RELEASE_TAG.match(tag):
+        raise ReportError(f"{tag!r} is not a release tag like v0.1.0 or v0.1.0-rc.1")
+    path = out_dir / f"experiments_{tag}.db"
+    if path.exists() or (out_dir / tag).exists():
+        raise ReportError(f"a snapshot for {tag} already exists in {out_dir}")
+    with closing(sqlite3.connect(f"file:{source}?mode=ro", uri=True)) as src:
+        reported = [r[0] for r in src.execute("SELECT run_id FROM runs WHERE is_reported = 1")]
+    if not reported:
+        raise ReportError(f"{source} has no reported runs. Run make mark-reported first.")
+    evaluations = {run_id: results_dir / run_id / EVALUATION_NAME for run_id in reported}
+    missing = [str(p) for p in evaluations.values() if not p.is_file()]
+    if missing:
+        raise ReportError(f"reported runs are missing their evaluation summaries: {missing}")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    partial = path.with_name(f"{path.name}.partial")
+    partial.unlink(missing_ok=True)
+    try:
+        with closing(connect(partial)) as conn:
+            create_schema(conn)
+            # Rows are copied table by table, so references are checked once at the end.
+            conn.execute("PRAGMA foreign_keys = OFF")
+            conn.execute("ATTACH DATABASE ? AS src", (str(source),))
+            with conn:
+                copied = _copy_reported(conn)
+            conn.execute("DETACH DATABASE src")
+            dangling = conn.execute("PRAGMA foreign_key_check").fetchall()
+            if dangling:
+                raise ReportError(f"the snapshot has rows with dangling references: {dangling}")
+            leaks = run_query(conn, LEAKAGE_AUDIT)
+            if leaks:
+                raise ReportError(f"the leakage audit returned {len(leaks)} rows in the snapshot")
+            conn.execute("VACUUM")
+        for run_id, evaluation in evaluations.items():
+            target = out_dir / tag / run_id / EVALUATION_NAME
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(evaluation, target)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        shutil.rmtree(out_dir / tag, ignore_errors=True)
+        raise
+    os.replace(partial, path)
+    logger.info("Wrote snapshot %s with runs %s, rows %s", path, reported, copied)
+    return path
