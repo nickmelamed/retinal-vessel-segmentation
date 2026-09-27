@@ -61,9 +61,17 @@ def test_invalid_sample_raises(overrides: dict[str, Any], message: str) -> None:
         sample(**overrides)
 
 
-def test_error_names_the_image() -> None:
-    with pytest.raises(ValueError, match="drive image '33'"):
-        sample(image_id="33", fov=np.zeros(SHAPE, dtype=bool))
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"fov": np.zeros(SHAPE, dtype=bool)},
+        {"fov": np.ones(SHAPE, dtype=np.uint8)},
+        {"label": np.ones((6, 4), dtype=bool)},
+    ],
+)
+def test_error_names_the_image(overrides: dict[str, Any]) -> None:
+    with pytest.raises(ValueError, match="^drive image '33': "):
+        sample(image_id="33", **overrides)
 
 
 def test_replace_revalidates() -> None:
@@ -135,7 +143,7 @@ def test_fold_rows_flatten_every_assignment() -> None:
 @pytest.mark.parametrize(
     ("ids", "spread", "n_folds", "n_val", "message"),
     [
-        (["a", "a", "b", "c"], set(), 2, 1, "duplicates"),
+        (["a", "a", "b", "c"], set(), 2, 1, "^image ids contain duplicates$"),
         ([], set(), 5, 2, "cannot split 0 images"),
         (DRIVE_TRAIN[:19], set(), 5, 2, "cannot split 19 images into 5"),
         (DRIVE_TRAIN, set(), 1, 2, "into 1 equal folds"),
@@ -155,6 +163,12 @@ def test_invalid_split_raises(
 def test_largest_valid_val_leaves_one_training_image() -> None:
     folds = make_folds(DRIVE_TRAIN, set(), n_folds=5, n_val=15, seed=0)
     assert all(len(f.train) == 1 for f in folds)
+
+
+def test_two_folds_is_the_smallest_split() -> None:
+    folds = make_folds(["a", "b", "c", "d"], {"a", "b"}, n_folds=2, n_val=1, seed=0)
+    assert [len(f.test) for f in folds] == [2, 2]
+    assert all(len({"a", "b"} & set(f.test)) == 1 for f in folds)
 
 
 def test_spread_may_fill_every_fold() -> None:

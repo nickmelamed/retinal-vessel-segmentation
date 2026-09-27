@@ -29,3 +29,6 @@ htmlcov/
 mutants/
 
 .DS_Store
+
+# mutmut working copy
+mutants/
