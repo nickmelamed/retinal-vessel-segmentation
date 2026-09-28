@@ -262,7 +262,7 @@ Every figure has a caption in the README stating what it shows and which images 
 
 ### README.md, in this order
 
-1. **First screen:** title ("Retinal vessel segmentation on DRIVE: a self-directed project"); one row of at most five badges (CI status, coverage, Python version, license, and a static "not for clinical use" badge); a 3–4 sentence plain-English summary; the hero figure or GIF; 2–3 headline numbers with CIs pulled from `results/tables/` (include the external-validation result once it exists); and a link to the results site.
+1. **First screen:** title ("Retinal vessel segmentation on DRIVE"); one row of at most five badges (CI status, coverage, Python version, license, and a static "not for clinical use" badge); a 3–4 sentence plain-English summary; the hero figure or GIF; 2–3 headline numbers with CIs pulled from `results/tables/` (include the external-validation result once it exists); and a link to the results site.
 2. **How it fits together:** a Mermaid diagram (GitHub renders it natively) showing DRIVE → preprocessing → U-Net cross-validation → SQLite database → R report and results site, plus the frozen model → external validation and uncertainty, and the anomaly module branching from the vessel masks. Keep it under about 12 nodes.
 3. Results: the metrics table, spread across images, calibration, thin versus thick sensitivity, the pathology subgroup (descriptive), and ablations. Include the note on accuracy and the comparability caveat.
 4. **Does it generalize?** External validation results on STARE and CHASE_DB1, the freeze-before-evaluate procedure, and an honest reading of the drop.
