@@ -133,6 +133,39 @@ def test_refuses_an_evaluation_from_other_code(
     refused(reportable, match)
 
 
+def test_refuses_mismatched_images_even_when_the_counts_agree(reportable: Finished) -> None:
+    # Image 21 loses its test role and image 22 its metric row, so 19 images
+    # are tested and 19 rows are stored, but they are not the same 19.
+    with reportable.conn:
+        reportable.conn.execute(
+            "DELETE FROM fold_assignments WHERE run_id = ? AND image_id = '21' AND role = 'test'",
+            (RUN_ID,),
+        )
+        reportable.conn.execute(
+            "DELETE FROM per_image_metrics WHERE run_id = ? AND image_id = '22'", (RUN_ID,)
+        )
+    problems = reportability_problems(reportable.conn, RUN_ID, REQUIRED, reportable.dirs)
+    assert "18 of 19 out-of-fold images are evaluated" in problems
+    assert "metric rows exist for images the run never tested: ['21']" in problems
+
+
+@pytest.mark.parametrize(
+    ("content", "match"),
+    [
+        ("{", "cannot be read"),
+        ("[]", "is not an evaluation summary"),
+        ('{"run_id": "x"}', "is not an evaluation summary"),
+    ],
+)
+def test_lists_an_unreadable_evaluation_summary(
+    reportable: Finished, content: str, match: str
+) -> None:
+    (reportable.dirs.results / RUN_ID / "evaluation.json").write_text(content)
+    problems = reportability_problems(reportable.conn, RUN_ID, REQUIRED, reportable.dirs)
+    assert any(match in p for p in problems)
+    refused(reportable, match)
+
+
 def test_refuses_an_evaluation_of_another_run(reportable: Finished) -> None:
     path = reportable.dirs.results / RUN_ID / "evaluation.json"
     summary = json.loads(path.read_text())

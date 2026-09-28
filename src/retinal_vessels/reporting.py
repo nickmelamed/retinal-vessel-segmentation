@@ -17,7 +17,7 @@ from contextlib import closing
 from pathlib import Path
 
 from retinal_vessels.config import ReportedRunsConfig
-from retinal_vessels.db import connect, create_schema, fold_statuses, run_query, set_reported
+from retinal_vessels.db import create_schema, fold_statuses, run_query, set_reported
 from retinal_vessels.evaluate import EVALUATION_NAME
 from retinal_vessels.provenance import sha256_file
 from retinal_vessels.train import OutputDirs
@@ -52,8 +52,13 @@ def _evaluation_problems(run_id: str, commit: str, dirs: OutputDirs) -> list[str
     path = dirs.results / run_id / EVALUATION_NAME
     if not path.is_file():
         return [f"{path} is missing. Run make evaluate at the run's commit first."]
-    summary = json.loads(path.read_text(encoding="utf-8"))
-    code = summary.get("code", {})
+    try:
+        summary = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as err:
+        return [f"{path} cannot be read: {err}"]
+    if not isinstance(summary, dict) or not isinstance(summary.get("code"), dict):
+        return [f"{path} is not an evaluation summary"]
+    code = summary["code"]
     problems = []
     if summary.get("run_id") != run_id:
         problems.append(f"{path} belongs to run {summary.get('run_id')}")
@@ -93,19 +98,29 @@ def reportability_problems(
             f"{required.gpu_type} on {required.compute_platform}"
         )
 
-    tested = conn.execute(
-        "SELECT COUNT(DISTINCT image_id) FROM fold_assignments WHERE run_id = ? AND role = 'test'",
-        (run_id,),
-    ).fetchone()[0]
-    rows, evaluated = conn.execute(
-        "SELECT COUNT(*), COUNT(brier) FROM per_image_metrics "
-        "WHERE run_id = ? AND prediction_mode = 'single'",
-        (run_id,),
-    ).fetchone()
-    if rows != tested or evaluated != rows:
-        problems.append(
-            f"{evaluated} of {tested} out-of-fold images are evaluated ({rows} rows stored)"
+    # Compare sets of images, since matching counts could hide a row for an
+    # image the run never tested next to a missing one.
+    tested = set(
+        conn.execute(
+            "SELECT DISTINCT dataset, image_id FROM fold_assignments "
+            "WHERE run_id = ? AND role = 'test'",
+            (run_id,),
+        ).fetchall()
+    )
+    stored = {
+        (dataset, image_id): brier is not None
+        for dataset, image_id, brier in conn.execute(
+            "SELECT dataset, image_id, brier FROM per_image_metrics "
+            "WHERE run_id = ? AND prediction_mode = 'single'",
+            (run_id,),
         )
+    }
+    evaluated = {key for key, done in stored.items() if done} & tested
+    if evaluated != tested:
+        problems.append(f"{len(evaluated)} of {len(tested)} out-of-fold images are evaluated")
+    untested = sorted(image_id for (_, image_id) in set(stored) - tested)
+    if untested:
+        problems.append(f"metric rows exist for images the run never tested: {untested}")
 
     problems += _evaluation_problems(run_id, commit, dirs)
     problems += checkpoint_problems(conn, run_id, dirs)
@@ -195,11 +210,13 @@ def write_snapshot(source: Path, results_dir: Path, out_dir: Path, tag: str) -> 
     partial = path.with_name(f"{path.name}.partial")
     partial.unlink(missing_ok=True)
     try:
-        with closing(connect(partial)) as conn:
+        # URI filenames let the source be attached read-only, so writing the
+        # snapshot can never change the database it copies from.
+        with closing(sqlite3.connect(partial.resolve().as_uri(), uri=True)) as conn:
             create_schema(conn)
             # Rows are copied table by table, so references are checked once at the end.
             conn.execute("PRAGMA foreign_keys = OFF")
-            conn.execute("ATTACH DATABASE ? AS src", (str(source),))
+            conn.execute("ATTACH DATABASE ? AS src", (f"{source.resolve().as_uri()}?mode=ro",))
             with conn:
                 copied = _copy_reported(conn)
             conn.execute("DETACH DATABASE src")

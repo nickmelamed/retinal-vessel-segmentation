@@ -8,6 +8,7 @@ from types import ModuleType
 
 import pytest
 
+from retinal_vessels import reporting
 from retinal_vessels.db import SCHEMA_VERSION, schema_version, set_reported
 from retinal_vessels.reporting import ReportError, write_snapshot
 from tests.fixtures.database import RUN, insert
@@ -155,6 +156,29 @@ def test_refuses_a_reference_to_an_unreported_run(reported: Finished, tmp_path: 
         snapshot(reported, tmp_path)
     release = tmp_path / "release"
     assert list(release.iterdir()) == []
+
+
+def test_leaves_the_source_database_unchanged(reported: Finished, tmp_path: Path) -> None:
+    reported.conn.commit()
+    before = reported.db.read_bytes()
+    snapshot(reported, tmp_path)
+    assert reported.db.read_bytes() == before
+
+
+def test_attaches_the_source_read_only(
+    reported: Finished, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reported.conn.commit()
+
+    def write_to_source(conn: sqlite3.Connection) -> dict[str, int]:
+        conn.execute("DELETE FROM src.runs")
+        return {}
+
+    monkeypatch.setattr(reporting, "_copy_reported", write_to_source)
+    with pytest.raises(sqlite3.OperationalError, match="readonly"):
+        snapshot(reported, tmp_path)
+    assert reported.conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0] >= 1
+    assert list((tmp_path / "release").iterdir()) == []
 
 
 def test_cli_writes_the_snapshot(reported: Finished, tmp_path: Path) -> None:
