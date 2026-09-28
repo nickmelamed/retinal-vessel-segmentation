@@ -74,15 +74,10 @@ Raise these before any other phase 5 work.
 
 ## Working notes
 
-- The Colab extension cannot download a file over about 512 MB after
-  encoding, and each checkpoint is about 90 MB. Zip `results/` on its own
-  and each checkpoint on its own (see D-022). The notebook cannot run a
-  cell while training runs, so mid-run downloads go through the Colab
-  terminal (command palette, Colab: Open Terminal). The Colab Contents view
-  opens from the command palette (View: Open View..., then Colab, Contents),
-  and right-click, Download... saves a file.
-- The runner notebook sets `MPLBACKEND=Agg`, since Colab's inline backend
-  broke TensorFlow's import.
+- Use `/colab-run` for the Colab session and `/report-run` for bringing
+  the run onto the laptop, verifying it, evaluating it at its tag, and
+  marking it reported. Both carry what the first reported run needed,
+  including the extension's download limit and the MPLBACKEND fix.
 - Each fold logs `meta_optimizer.cc:967] layout failed` at error level. It
   is harmless (D-022).
 - Evaluation needs a clean tree at the run's tag. Stash any local notebook
