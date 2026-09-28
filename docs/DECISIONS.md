@@ -458,3 +458,15 @@ so the reporting, snapshot, and table tests can share it. The Stop hook
 counts assertions per file against `main`, so it flagged the move as a
 weakened test. The owner approved the move, and it reached `main` on its
 own in PR #8.
+
+The reported run is `20260928T013730Z-4f5d08`, trained on a Colab Tesla
+T4 with deterministic ops on. No op raised an unimplemented-determinism
+error. Each fold logged one `meta_optimizer.cc:967] layout failed:
+INVALID_ARGUMENT` line from TensorFlow's graph optimizer, which could not
+rewrite the tensor layout around the dropout ops and left that part of
+the graph as it was. The line is logged at error level, but training
+continued, every fold completed on its first attempt, and the checkpoints
+and predictions verified on the laptop. The whole run came to about
+446 MB of checkpoints, over the Colab extension's download limit of
+about 512 MB once encoded, so the outputs came down as one zip of
+`results/` and one zip per checkpoint.
