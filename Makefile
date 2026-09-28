@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup lock lock-check check-data train evaluate verify-checkpoints lint test smoke mutate ci agent-check
+.PHONY: help setup lock lock-check check-data train evaluate verify-checkpoints mark-reported snapshot tables figures presentation lint test smoke mutate ci agent-check
 
 EXPORT := uv export --no-dev --no-hashes --no-emit-project --quiet
 VARIANT ?= baseline
@@ -31,6 +31,23 @@ evaluate:  ## Fill AUCs, Brier, and thin/thick sensitivity from saved prediction
 
 verify-checkpoints:  ## Check downloaded checkpoints against the database (RUN=<run_id>, default latest, UNFINISHED=1 to check a run still training)
 	uv run python scripts/verify_checkpoints.py $(if $(RUN),--run-id $(RUN),) $(if $(UNFINISHED),--allow-unfinished,)
+
+mark-reported:  ## Mark a finished, evaluated run as reported after checking it (RUN=<run_id>, required)
+	@test -n "$(RUN)" || (echo "Pass RUN=<run_id>." && exit 1)
+	uv run python scripts/mark_reported.py --run-id $(RUN)
+
+snapshot:  ## Export reported runs to results/release/experiments_<tag>.db (TAG=<version>, required)
+	@test -n "$(TAG)" || (echo "Pass TAG=<version>, like TAG=v0.1.0." && exit 1)
+	uv run python scripts/snapshot_db.py --tag $(TAG)
+
+tables:  ## Write results/tables/*.md from the reported runs
+	uv run python scripts/make_tables.py
+
+figures:  ## Draw figures/*.png from the reported run of VARIANT (needs the data)
+	uv run python -m retinal_vessels.figures --variant $(VARIANT)
+
+presentation:  ## Build figures/social_preview.png from the hero figure
+	uv run python scripts/make_social_preview.py
 
 lint:  ## ruff, ruff format --check, mypy, sqlfluff
 	uv run ruff check .
