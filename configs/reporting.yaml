@@ -32,3 +32,16 @@ figures:
   true_positive: "#52514e"
   false_positive: "#eb6834"
   false_negative: "#2a78d6"
+
+preview:
+  # GitHub's recommended size for a repository preview image.
+  width_px: 1280
+  height_px: 640
+  dpi: 100
+  title: Retinal vessel segmentation on DRIVE
+  subtitle: A learning project on public data. Not for clinical use.
+  title_size: 30
+  subtitle_size: 15
+  title_y: 0.9
+  subtitle_y: 0.82
+  hero_box: [0.03, 0.03, 0.94, 0.74]

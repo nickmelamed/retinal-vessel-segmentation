@@ -216,6 +216,30 @@ class FiguresConfig(_Section):
         return self
 
 
+class PreviewConfig(_Section):
+    """Layout of the repository preview image built from the hero figure."""
+
+    width_px: int = Field(ge=1)
+    height_px: int = Field(ge=1)
+    dpi: int = Field(ge=1)
+    title: str = Field(min_length=1)
+    subtitle: str = Field(min_length=1)
+    title_size: float = Field(gt=0)
+    subtitle_size: float = Field(gt=0)
+    # Heights of the two text lines and the hero's box (left, bottom, width,
+    # height), all as fractions of the canvas.
+    title_y: float = Field(gt=0, lt=1)
+    subtitle_y: float = Field(gt=0, lt=1)
+    hero_box: tuple[float, float, float, float]
+
+    @model_validator(mode="after")
+    def _box_inside_canvas(self) -> "PreviewConfig":
+        left, bottom, width, height = self.hero_box
+        if min(self.hero_box) < 0 or left + width > 1 or bottom + height > 1:
+            raise ValueError(f"hero_box must lie inside the canvas, got {self.hero_box}")
+        return self
+
+
 class ReportingConfig(_Section):
     """Settings for presenting reported results, read from ``configs/reporting.yaml``.
 
@@ -225,6 +249,7 @@ class ReportingConfig(_Section):
     reported_runs: ReportedRunsConfig
     tables: TablesConfig
     figures: FiguresConfig
+    preview: PreviewConfig
 
 
 def _load[M: BaseModel](path: Path, model: type[M]) -> M:

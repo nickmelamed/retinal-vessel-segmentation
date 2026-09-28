@@ -43,8 +43,9 @@ snapshot:  ## Export reported runs to results/release/experiments_<tag>.db (TAG=
 tables:  ## Write results/tables/*.md from the reported runs
 	uv run python scripts/make_tables.py
 
-figures:  ## Draw figures/*.png from the reported run of VARIANT (needs the data)
+figures:  ## Draw figures/*.png from the reported run of VARIANT, and the preview built from the hero (needs the data)
 	uv run python -m retinal_vessels.figures --variant $(VARIANT)
+	uv run python scripts/make_social_preview.py
 
 presentation:  ## Build figures/social_preview.png from the hero figure
 	uv run python scripts/make_social_preview.py

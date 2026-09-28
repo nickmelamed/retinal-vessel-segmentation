@@ -196,6 +196,8 @@ def test_shipped_reporting_config_loads() -> None:
         ("reported_runs", "gpu_type"),
         ("tables", "bootstrap_seed"),
         ("figures", "false_negative"),
+        (None, "preview"),
+        ("preview", "hero_box"),
     ],
 )
 def test_reporting_rejects_missing_key(
@@ -222,6 +224,9 @@ def test_reporting_rejects_unknown_key(tmp_path: Path, reporting: dict[str, Any]
         ("figures", "series", "blue"),
         ("figures", "series", "#2A78D6"),
         ("reported_runs", "gpu_type", ""),
+        ("preview", "title_y", 1),
+        ("preview", "width_px", 0),
+        ("preview", "hero_box", [0.5, 0.0, 0.6, 0.5]),
     ],
 )
 def test_reporting_rejects_bad_value(
