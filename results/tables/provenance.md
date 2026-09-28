@@ -9,6 +9,7 @@
 | Evaluated at commit | 0452dba845e2f882a2181101f7edb22cb83e36a3 |
 | Evaluated from a clean tree | yes |
 | Data hash | 06877e1d0cadbda77b2b6abecf5871381bd20cec7d26c2c94ee892ef394bdd98 |
+| Leakage audit rows (query 04) | 0 |
 | GPU | Tesla T4 |
 | Platform | colab |
 | Python | 3.13.15 |
