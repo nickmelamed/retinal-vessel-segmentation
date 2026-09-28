@@ -29,8 +29,10 @@ docs/CONTRIBUTING.md.
    training or validation images only. External datasets are touched only
    after the model is frozen (section 5), and nothing is tuned on them. If you
    notice a decision informed by held-out or external results, stop and flag it.
-4. No data in git. No images from any dataset. `data/` is gitignored. The
-   README links to each official source and cites each paper.
+4. No data in git. No images from any dataset, except a few example images
+   shown in committed figures with the dataset's attribution (SPEC section 4).
+   `data/` is gitignored. The README links to each official source and cites
+   each paper.
 5. Report negative results plainly. Compare to published DRIVE results only in
    general terms, and note that CV numbers are not comparable to results on
    the official test split.
