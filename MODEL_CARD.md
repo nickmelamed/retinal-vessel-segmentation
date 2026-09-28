@@ -123,7 +123,8 @@ Rerun variance with the same seed is TBD.
 ## Ethical considerations
 
 The data is public, no patient identifiers are published, and its images are
-not redistributed here. The model comes from one screening program in one country
+not redistributed here, apart from a few example images in the figures, shown
+with attribution. The model comes from one screening program in one country
 and would carry that population's and camera's characteristics into any other
 setting. Its main error, missing thin vessels, is the kind that can hide
 findings, so it should not be presented as an aid to screening or to any

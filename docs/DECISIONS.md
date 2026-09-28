@@ -438,7 +438,10 @@ so no figure can show a prediction other than the one that was scored. A
 figure over the pre-commit hook's 1 MB limit is an error, and the layout
 shrinks instead of the limit rising.
 
-The thin and thick bins keep the per-fold quantile edge of D-021. The
+The thin and thick bins keep the per-fold quantile edge of D-021. SPEC
+section 11 names a bar chart for them. The figure is a strip chart instead,
+every image as a point with the mean and its interval, since with 20 images
+a bar would hide the spread and the image 34 outlier. The
 per-fold table, the thin and thick table, and the chart say plainly
 whether the folds set different edges.
 
