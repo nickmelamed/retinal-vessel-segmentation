@@ -87,6 +87,21 @@ def test_bootstrap_is_seeded() -> None:
     assert bootstrap_mean_ci(values, 500, 3, 0.95) != bootstrap_mean_ci(values, 500, 4, 0.95)
 
 
+def test_bootstrap_of_two_values_is_hand_worked() -> None:
+    # Resampling [0, 1] twice gives a mean of 0, 0.5, or 1 with probability
+    # 1/4, 1/2, 1/4, so the 2.5% and 97.5% quantiles are exactly 0 and 1.
+    assert bootstrap_mean_ci([0.0, 1.0], 20000, 0, 0.95) == (0.0, 1.0)
+
+
+def test_every_metric_uses_the_same_draws() -> None:
+    # D-022: each metric of a run is resampled with the same images, so a
+    # metric that is exactly twice another has exactly twice its interval.
+    values = list(np.random.default_rng(1).uniform(0, 0.5, 20))
+    once = summarize(values, CONFIG)
+    twice = summarize([2 * v for v in values], CONFIG)
+    assert (twice.ci_low, twice.ci_high) == pytest.approx((2 * once.ci_low, 2 * once.ci_high))
+
+
 def test_bootstrap_needs_values() -> None:
     with pytest.raises(ValueError, match="empty"):
         bootstrap_mean_ci([], 10, 0, 0.95)
@@ -271,6 +286,21 @@ def test_provenance_separates_the_training_and_evaluation_trees(
     text = tables(reportable, tmp_path, development=True)["provenance.md"]
     assert provenance_row(text, "Trained from a clean tree") == "no"
     assert provenance_row(text, "Evaluated from a clean tree") == "yes"
+
+
+def test_provenance_counts_the_leakage_audit_rows(reported: Finished, tmp_path: Path) -> None:
+    clean = tables(reported, tmp_path / "clean")["provenance.md"]
+    assert provenance_row(clean, "Leakage audit rows (query 04)") == "0"
+    # Image 21 is a test image in fold 5. A second test role in fold 1, where
+    # it trains, leaks twice: two roles in fold 1, and a test in two folds.
+    fold = next(f.number for f in reported.folds if "21" in f.train)
+    insert(
+        reported.conn,
+        "fold_assignments",
+        {"run_id": RUN_ID, "fold": fold, "dataset": "drive", "image_id": "21", "role": "test"},
+    )
+    leaky = tables(reported, tmp_path / "leaky")["provenance.md"]
+    assert provenance_row(leaky, "Leakage audit rows (query 04)") == "2"
 
 
 def test_provenance_of_a_reported_run_is_clean_throughout(

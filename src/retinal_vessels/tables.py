@@ -25,6 +25,7 @@ from retinal_vessels.evaluate import EVALUATION_NAME
 logger = logging.getLogger(__name__)
 
 THRESHOLD_LOG = "05_threshold_log"
+LEAKAGE_AUDIT = "04_leakage_audit"
 DATASET = "drive"
 # Column name in per_image_metrics, and the label shown in the tables.
 HEADLINE_METRICS = (
@@ -72,12 +73,16 @@ class Summary:
 
 @dataclass(frozen=True)
 class RunTables:
-    """What the tables need from one run: its record, images, folds, and evaluation summary."""
+    """What the tables need from one run: its record, images, folds, and evaluation summary.
+
+    ``leaks`` counts the leakage audit's rows for this run, which must be zero.
+    """
 
     run: dict[str, Any]
     images: list[dict[str, Any]]
     folds: list[dict[str, Any]]
     evaluation: dict[str, Any]
+    leaks: int
 
 
 def bootstrap_mean_ci(
@@ -193,7 +198,8 @@ def load_run(conn: sqlite3.Connection, run_id: str, results_dir: Path) -> RunTab
         folds.append(fold)
     if len(folds) != len(edges):
         raise TableError(f"{path} lists {len(edges)} folds, the database {len(folds)}")
-    return RunTables(run, images, folds, evaluation)
+    leaks = sum(1 for row in run_query(conn, LEAKAGE_AUDIT) if row[0] == run_id)
+    return RunTables(run, images, folds, evaluation, leaks)
 
 
 def _heading(data: RunTables) -> str:
@@ -425,6 +431,7 @@ def provenance(data: RunTables, config: TablesConfig) -> str:
         ["Evaluated at commit", code["commit"]],
         ["Evaluated from a clean tree", "no" if code["dirty"] else "yes"],
         ["Data hash", run["data_hash"]],
+        ["Leakage audit rows (query 04)", str(data.leaks)],
         ["GPU", run["gpu_type"]],
         ["Platform", run["compute_platform"]],
         ["Python", run["python_version"]],
