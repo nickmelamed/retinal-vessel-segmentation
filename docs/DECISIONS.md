@@ -483,7 +483,7 @@ image is the lower of the two middle images by Dice, chosen by rank, since
 the two are always equally far from an even-count median and a float
 comparison would let rounding choose. The provenance table reports the
 training and evaluation trees separately and counts the leakage audit's rows
-for the run. `mark-reported` compares image sets instead of counts. The
+for the run. `mark-reported` compares image sets instead of counts. After the Claude review of PR #9 it also requires that the run tested every labeled DRIVE image, that its recorded deterministic ops match its config, and that its data hash matches the committed checksums. Determinism itself is a config choice, not a reporting requirement. The
 snapshot attaches its source read-only. The preview image has a sidecar, its
 layout lives in the `preview` section of `configs/reporting.yaml`, and
 `make figures` rebuilds it with the hero.

@@ -30,8 +30,10 @@ or its database rows to make a check pass.
    NULL.
 7. Switch back to the working branch and `git stash pop`. Never drop the
    owner's stash.
-8. Run `make mark-reported RUN=<run_id>`. It lists every failed check. If any
-   fails, stop and show them to the owner.
+8. Run `make mark-reported RUN=<run_id>`. Among other checks, it requires
+   that the run tested every labeled image and that its data hash matches
+   the committed checksums. It lists every failed check. If any fails, stop
+   and show them to the owner.
 9. Run `make tables figures`. Copy `results/tables` and `figures` aside, run
    it again, and require no difference. Every figure must be under the
    1 MB limit, and `make figures` fails if one is not. Shrink the layout,
