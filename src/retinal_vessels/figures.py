@@ -50,6 +50,7 @@ LINE_PX = 2
 HAIRLINE_PX = 1
 MARKER_PX = 8
 ATTRIBUTION = "Images from DRIVE (Staal et al., 2004)."
+DEVELOPMENT_MARK = "Development run, not reported. Do not cite."
 # Figure sizes in inches, chosen so image panels show DRIVE's 565 px width
 # at about its native size and every PNG stays under the large-file limit.
 HERO_SIZE = (12.0, 3.9)
@@ -515,9 +516,13 @@ def _save(
     images: Sequence[str],
     development: bool,
     max_bytes: int,
+    ink: str,
 ) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{name}.png"
+    if development:
+        # A figure embedded in a page never shows its sidecar, so it says so itself.
+        fig.text(0.99, 0.005, DEVELOPMENT_MARK, ha="right", fontsize="x-small", color=ink)
     fig.savefig(path, facecolor=fig.get_facecolor(), metadata={"Software": None})
     size = path.stat().st_size
     if size > max_bytes:
@@ -583,7 +588,7 @@ def write_figures(
         ("thin_thick", thin_thick(data, tables, colors, dpi), all_ids),
     ]
     return [
-        _save(fig, out_dir, name, data, ids, development, colors.max_bytes)
+        _save(fig, out_dir, name, data, ids, development, colors.max_bytes, colors.ink)
         for name, fig, ids in figures
     ]
 
@@ -614,7 +619,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     setup_logging()
 
-    if args.allow_unreported and args.out_dir.resolve() == (REPO / "figures").resolve():
+    out = args.out_dir.resolve()
+    if args.allow_unreported and (REPO / "figures").resolve() in (out, *out.parents):
         logger.error("unreported runs never go into %s. Pass another --out-dir.", REPO / "figures")
         return 1
     if not args.db.is_file():

@@ -37,7 +37,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     setup_logging()
 
-    if args.allow_unreported and args.out_dir.resolve() == REPORTED_TABLES.resolve():
+    # check_numbers.py reads every file under results/tables, so a development
+    # run may not write anywhere inside it.
+    out = args.out_dir.resolve()
+    if args.allow_unreported and REPORTED_TABLES.resolve() in (out, *out.parents):
         logger.error("unreported runs never go into %s. Pass another --out-dir.", REPORTED_TABLES)
         return 1
     if not args.db.is_file():

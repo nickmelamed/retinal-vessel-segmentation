@@ -272,11 +272,19 @@ def test_cli_refuses_data_the_run_did_not_train_on(
     assert cli(reported, tmp_path / "figs", "--variant", variant) == 1
 
 
-def test_cli_never_draws_a_development_run_into_figures(reportable: Finished) -> None:
-    out = REPO / "figures"
+@pytest.mark.parametrize("sub", ["", "dev", "dev/nested"])
+def test_cli_never_draws_a_development_run_into_figures(reportable: Finished, sub: str) -> None:
+    out = REPO / "figures" / sub
     existed = out.exists()
     assert cli(reportable, out, "--allow-unreported", RUN_ID) == 1
     assert out.exists() == existed
+
+
+def test_development_figures_say_so_on_the_image(reported: Finished, tmp_path: Path) -> None:
+    # The same run drawn both ways differs only by the visible development line.
+    reported_pngs = [p.read_bytes() for p in draw(reported, tmp_path / "reported")]
+    development_pngs = [p.read_bytes() for p in draw(reported, tmp_path / "dev", development=True)]
+    assert all(a != b for a, b in zip(reported_pngs, development_pngs, strict=True))
 
 
 def test_cli_needs_a_database(tmp_path: Path) -> None:

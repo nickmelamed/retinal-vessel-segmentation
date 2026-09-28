@@ -352,10 +352,12 @@ def test_cli_tabulates_a_development_run_elsewhere(reportable: Finished, tmp_pat
     assert (tmp_path / "dev" / "headline.md").read_text().startswith("> Development run")
 
 
+@pytest.mark.parametrize("sub", ["", "dev", "dev/nested"])
 def test_cli_never_writes_a_development_run_into_results_tables(
-    reportable: Finished,
+    reportable: Finished, sub: str
 ) -> None:
-    out = REPO / "results" / "tables"
+    # check_numbers.py reads the whole tree, so a subdirectory is refused too.
+    out = REPO / "results" / "tables" / sub
     existed = out.exists()
     assert cli(reportable, out, "--allow-unreported", RUN_ID) == 1
     assert out.exists() == existed
