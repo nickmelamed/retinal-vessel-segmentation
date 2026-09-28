@@ -159,6 +159,17 @@ def test_refuses_data_that_does_not_match_the_committed_checksums(reportable: Fi
     refused(reportable, "data hash does not match the checksums")
 
 
+def test_ignores_checksums_of_other_datasets(reportable: Finished, tmp_path: Path) -> None:
+    # External datasets join the same manifest later, and a DRIVE run's hash
+    # covers only the DRIVE entries.
+    manifest = tmp_path / "CHECKSUMS.sha256"
+    extra = "ab" * 32 + "  STARE/images/im0001.ppm\n"
+    manifest.write_text(reportable.checksums.read_text() + extra)
+    assert (
+        reportability_problems(reportable.conn, RUN_ID, REQUIRED, reportable.dirs, manifest) == []
+    )
+
+
 def test_refuses_when_the_checksums_cannot_be_read(reportable: Finished, tmp_path: Path) -> None:
     with pytest.raises(ReportError, match="cannot read the committed checksums"):
         mark_reported(reportable.conn, RUN_ID, REQUIRED, reportable.dirs, tmp_path / "absent")

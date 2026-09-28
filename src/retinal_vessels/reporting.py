@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 LEAKAGE_AUDIT = "04_leakage_audit"
 DATASET = "drive"
+# The dataset's top-level directory in data/CHECKSUMS.sha256.
+MANIFEST_DATASET = "DRIVE"
 
 
 class ReportError(RuntimeError):
@@ -73,9 +75,14 @@ def _evaluation_problems(run_id: str, commit: str, dirs: OutputDirs) -> list[str
 
 def _data_problems(data_hash_: str, checksums: Path) -> list[str]:
     try:
-        expected = data_hash(read_checksums(checksums))
+        entries = read_checksums(checksums)
     except (OSError, ValueError) as err:
         return [f"cannot read the committed checksums at {checksums}: {err}"]
+    # A run's hash covers only the DRIVE entries it was verified against, and
+    # the manifest also holds the external datasets once they are added.
+    expected = data_hash(
+        {rel: d for rel, d in entries.items() if rel.split("/", 1)[0] == MANIFEST_DATASET}
+    )
     if data_hash_ != expected:
         return [f"the run's data hash does not match the checksums in {checksums}"]
     return []
