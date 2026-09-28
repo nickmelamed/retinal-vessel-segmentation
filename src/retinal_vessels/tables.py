@@ -508,10 +508,16 @@ def write_tables(
     """
     if not run_ids:
         raise TableError("no runs to tabulate. Mark a run reported first.")
-    runs = [load_run(conn, run_id, results_dir) for run_id in run_ids]
-    variants = [r.run["variant"] for r in runs]
+    # Checked before loading, so the reason given is the duplicate, whatever
+    # state the other run is in.
+    variants = [
+        row[0]
+        for run_id in run_ids
+        for row in conn.execute("SELECT variant FROM runs WHERE run_id = ?", (run_id,))
+    ]
     if len(set(variants)) != len(variants):
         raise TableError(f"more than one run per variant: {sorted(variants)}")
+    runs = [load_run(conn, run_id, results_dir) for run_id in run_ids]
     if not development and not all(r.run["is_reported"] for r in runs):
         raise TableError("only reported runs go into the tables")
 

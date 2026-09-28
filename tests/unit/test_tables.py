@@ -315,10 +315,16 @@ def test_refuses_two_runs_of_one_variant(reported: Finished, tmp_path: Path) -> 
     variant = reported.conn.execute(
         "SELECT variant FROM runs WHERE run_id = ?", (RUN_ID,)
     ).fetchone()[0]
+    # A second, distinct run of the same variant, as a rerun would be.
     insert(reported.conn, "runs", {**RUN, "variant": variant})
     with pytest.raises(TableError, match="more than one run per variant"):
         write_tables(
-            reported.conn, [RUN_ID, RUN_ID], reported.dirs.results, tmp_path, CONFIG, reported.db
+            reported.conn,
+            [RUN_ID, RUN["run_id"]],
+            reported.dirs.results,
+            tmp_path,
+            CONFIG,
+            reported.db,
         )
 
 

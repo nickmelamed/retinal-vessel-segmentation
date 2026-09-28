@@ -272,25 +272,29 @@ def training_curves(
         dice = [(e, d) for e, _, d in history[fold] if d is not None]
         dice_ax.plot([e for e, _ in dice], [d for _, d in dice], **line)
         chosen = [(e, d) for e, d in dice if e == best[fold]]
-        if chosen:
-            dice_ax.plot(
-                *zip(*chosen, strict=True),
-                marker="o",
-                linestyle="none",
-                markersize=_pt(MARKER_PX, dpi),
-                color=colors.series,
-                markeredgecolor=colors.surface,
-                markeredgewidth=_pt(LINE_PX, dpi),
+        if not chosen:
+            raise FigureError(
+                f"fold {fold}: best epoch {best[fold]} has no validation Dice in the "
+                "training history"
             )
-            dice_ax.annotate(
-                f"best, epoch {best[fold]}",
-                chosen[0],
-                xytext=(0, -14),
-                textcoords="offset points",
-                ha="center",
-                fontsize="x-small",
-                color=colors.secondary_ink,
-            )
+        dice_ax.plot(
+            *zip(*chosen, strict=True),
+            marker="o",
+            linestyle="none",
+            markersize=_pt(MARKER_PX, dpi),
+            color=colors.series,
+            markeredgecolor=colors.surface,
+            markeredgewidth=_pt(LINE_PX, dpi),
+        )
+        dice_ax.annotate(
+            f"best, epoch {best[fold]}",
+            chosen[0],
+            xytext=(0, -14),
+            textcoords="offset points",
+            ha="center",
+            fontsize="x-small",
+            color=colors.secondary_ink,
+        )
         loss_ax.set_title(f"Fold {fold}", color=colors.ink, fontsize="medium")
         dice_ax.set_xlabel("Epoch", color=colors.secondary_ink)
         dice_ax.xaxis.set_major_locator(MaxNLocator(integer=True))

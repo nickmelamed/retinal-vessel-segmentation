@@ -206,6 +206,16 @@ def test_load_history_needs_rows(reported: Finished) -> None:
         load_history(reported.conn, "other")
 
 
+def test_training_curves_need_the_kept_epoch(reported: Finished, tmp_path: Path) -> None:
+    # The caption promises a dot at the kept epoch. If no epoch in the history
+    # reaches the fold's recorded validation Dice, there is none to mark.
+    reported.conn.execute(
+        "UPDATE training_history SET val_dice = 0.4 WHERE run_id = ? AND fold = 3", (RUN_ID,)
+    )
+    with pytest.raises(FigureError, match="fold 3: best epoch None has no validation Dice"):
+        draw(reported, tmp_path)
+
+
 def test_edge_note_says_when_folds_differ(reported: Finished) -> None:
     data = load_run(reported.conn, RUN_ID, reported.dirs.results)
     assert "the same in every fold" in edge_note(data, 3)
