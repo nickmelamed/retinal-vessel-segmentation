@@ -44,7 +44,7 @@ IMAGE_COLUMNS = (
     "m.auc_pr, m.brier, m.thin_sensitivity, m.thick_sensitivity, m.predicted_vessel_fraction"
 )
 RUN_COLUMNS = (
-    "run_id, variant, git_tag, git_commit, data_hash, gpu_type, compute_platform, "
+    "run_id, variant, git_tag, git_commit, git_dirty, data_hash, gpu_type, compute_platform, "
     "python_version, tensorflow_version, cuda_version, deterministic_ops, started_at, "
     "finished_at, is_reported"
 )
@@ -421,8 +421,9 @@ def provenance(data: RunTables, config: TablesConfig) -> str:
         ["Variant", run["variant"]],
         ["Tag", str(run["git_tag"])],
         ["Commit", run["git_commit"]],
-        ["Clean tree", "yes" if not code["dirty"] else "no"],
+        ["Trained from a clean tree", "no" if run["git_dirty"] else "yes"],
         ["Evaluated at commit", code["commit"]],
+        ["Evaluated from a clean tree", "no" if code["dirty"] else "yes"],
         ["Data hash", run["data_hash"]],
         ["GPU", run["gpu_type"]],
         ["Platform", run["compute_platform"]],

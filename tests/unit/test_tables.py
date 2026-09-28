@@ -257,6 +257,30 @@ def test_development_tables_say_so(reportable: Finished, tmp_path: Path) -> None
         assert text.startswith("> Development run, not reported.")
 
 
+def provenance_row(text: str, field: str) -> str:
+    row = next(line for line in text.splitlines() if line.startswith(f"| {field} |"))
+    return row.split("|")[2].strip()
+
+
+def test_provenance_separates_the_training_and_evaluation_trees(
+    reportable: Finished, tmp_path: Path
+) -> None:
+    # A development run trained from a dirty tree can be evaluated from a
+    # clean one, and the table must not report the training tree as clean.
+    reportable.conn.execute("UPDATE runs SET git_dirty = 1 WHERE run_id = ?", (RUN_ID,))
+    text = tables(reportable, tmp_path, development=True)["provenance.md"]
+    assert provenance_row(text, "Trained from a clean tree") == "no"
+    assert provenance_row(text, "Evaluated from a clean tree") == "yes"
+
+
+def test_provenance_of_a_reported_run_is_clean_throughout(
+    reported: Finished, tmp_path: Path
+) -> None:
+    text = tables(reported, tmp_path)["provenance.md"]
+    assert provenance_row(text, "Trained from a clean tree") == "yes"
+    assert provenance_row(text, "Evaluated from a clean tree") == "yes"
+
+
 def test_refuses_two_runs_of_one_variant(reported: Finished, tmp_path: Path) -> None:
     variant = reported.conn.execute(
         "SELECT variant FROM runs WHERE run_id = ?", (RUN_ID,)
