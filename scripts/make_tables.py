@@ -1,9 +1,9 @@
 """Write the Markdown tables in ``results/tables`` from the reported runs.
 
-Documents copy their numbers from these files (rule 2). Only reported runs
-are used. ``--allow-unreported`` exists for the smoke test and
-``/scratch-train``: it marks every file as a development run, and it is
-refused when writing to the repo's ``results/tables``.
+Documents copy their numbers from these files, so only reported runs are
+used. The smoke test and ``/scratch-train`` pass ``--allow-unreported``,
+which marks every file as a development run and cannot write to
+``results/tables``.
 """
 
 import argparse

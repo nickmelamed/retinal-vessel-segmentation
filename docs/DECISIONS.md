@@ -467,12 +467,12 @@ rewrite the tensor layout around the dropout ops and left that part of
 the graph as it was. The line is logged at error level, but training
 continued, every fold completed on its first attempt, and the checkpoints
 and predictions verified on the laptop. The whole run came to about
-446 MB of checkpoints, over the Colab extension's download limit of
-about 512 MB once encoded, so the outputs came down as one zip of
+446 MB of checkpoints, which is over the Colab extension's download limit
+of about 512 MB once the files are encoded, so the outputs came down as one zip of
 `results/` and one zip per checkpoint.
 
 The owner dropped ": a self-directed project" from the README title, since
 the repository is plainly the owner's own work. The title is now
 "Retinal vessel segmentation on DRIVE" in SPEC section 12, the README, and
 `CITATION.cff`. The first screen still says it is a learning project on
-public data, which is the framing rule 1 needs.
+public data.

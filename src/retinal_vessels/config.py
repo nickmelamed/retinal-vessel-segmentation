@@ -219,8 +219,7 @@ class FiguresConfig(_Section):
 class ReportingConfig(_Section):
     """Settings for presenting reported results, read from ``configs/reporting.yaml``.
 
-    Kept out of the variant configs, since each run stores its variant config
-    and presentation settings must be able to change without touching that record.
+    Separate from ``Config`` so that changing it never changes a stored run's config.
     """
 
     reported_runs: ReportedRunsConfig

@@ -1,7 +1,7 @@
 """Draw the committed figures from a reported run (SPEC section 11).
 
 Every figure comes from the database, the run's ``evaluation.json``, and
-its saved out-of-fold probabilities, never from numbers typed in by hand.
+its saved out-of-fold probabilities.
 Each PNG gets a JSON sidecar naming the run, tag, commit, data hash, and
 images it used (SPEC section 17). Figures are drawn on a bare ``Figure``
 with the Agg canvas, so no plotting backend setting matters, and PNG
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 REPO = Path(__file__).resolve().parents[2]
 POINTS_PER_INCH = 72
-# Mark specs of the palette, in pixels at the output resolution.
+# Line and marker sizes in output pixels.
 LINE_PX = 2
 HAIRLINE_PX = 1
 MARKER_PX = 8
@@ -166,7 +166,7 @@ def _label(sample: Sample) -> np.ndarray:
 
 
 def hero(item: Drawn, data: RunTables, colors: FiguresConfig, decimals: int, dpi: int) -> Figure:
-    """The image closest to the median Dice: image, ground truth, prediction, and errors."""
+    """Draw the image closest to the median Dice with its label, prediction, and errors."""
     s = item.sample
     label = _label(s)
     fig = _new_figure(*HERO_SIZE, colors, dpi)
@@ -209,7 +209,7 @@ def best_worst(
     decimals: int,
     dpi: int,
 ) -> Figure:
-    """The lowest and highest Dice images, each with its error map."""
+    """Draw the lowest and highest Dice images, each with its error map."""
     rows = [("Worst", d) for d in worst] + [("Best", d) for d in best]
     fig = _new_figure(BEST_WORST_WIDTH, BEST_WORST_ROW_HEIGHT * len(rows), colors, dpi)
     axes = fig.subplots(len(rows), 2, squeeze=False)
@@ -244,7 +244,7 @@ def training_curves(
     colors: FiguresConfig,
     dpi: int,
 ) -> Figure:
-    """Training loss and validation Dice per epoch, one column per fold, best epoch marked."""
+    """Draw training loss and validation Dice per epoch for each fold, marking the best."""
     folds = sorted(history)
     best = {f["fold"]: f["best_epoch"] for f in data.folds}
     fig = _new_figure(CURVE_COLUMN_WIDTH * len(folds), CURVE_HEIGHT, colors, dpi)
@@ -288,7 +288,7 @@ def training_curves(
 
 
 def reliability(data: RunTables, colors: FiguresConfig, decimals: int, dpi: int) -> Figure:
-    """Observed vessel fraction against mean predicted probability, with pixels per bin below."""
+    """Draw observed vessel fraction against mean predicted probability, and pixels per bin."""
     table = data.evaluation["reliability"]
     edges = np.asarray(table["edges"], dtype=np.float64)
     centers = (edges[:-1] + edges[1:]) / 2
@@ -360,7 +360,7 @@ def edge_note(data: RunTables, decimals: int) -> str:
 
 
 def thin_thick(data: RunTables, tables: TablesConfig, colors: FiguresConfig, dpi: int) -> Figure:
-    """Per-image sensitivity on thin and thick vessels, with the mean and its interval."""
+    """Draw per-image sensitivity on thin and thick vessels, with the mean and its interval."""
     fig = _new_figure(*STRIP_SIZE, colors, dpi)
     ax = fig.subplots()
     _style(ax, colors, dpi)

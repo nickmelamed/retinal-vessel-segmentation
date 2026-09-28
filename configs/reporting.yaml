@@ -1,8 +1,6 @@
 # Settings for the reported tables and figures (SPEC sections 11, 12, 17).
-# This is not a variant config. Each run stores its variant config, so the
-# settings for presenting results live here, where changing them never
-# changes a run's record. Each setting is required, see
-# src/retinal_vessels/config.py.
+# Kept apart from the variant configs, which each run stores, so changing
+# these never changes a run's record. Every key is required.
 
 reported_runs:
   # Every reported segmentation run uses the same GPU (D-013, SPEC section 16).
@@ -22,7 +20,7 @@ figures:
   n_best_worst: 2
   # The pre-commit hook's large-file limit, --maxkb=1024.
   max_bytes: 1048576
-  # Colors from the validated default palette. False positives and false
+  # Colors from the default palette. False positives and false
   # negatives use its first two categorical slots, which stay apart under
   # every color vision deficiency. True positives are neutral ink.
   surface: "#fcfcfb"

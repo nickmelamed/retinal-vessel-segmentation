@@ -1,7 +1,7 @@
 """Build the Markdown tables in ``results/tables`` from reported runs.
 
-Every number a document quotes is copied from these files (rule 2), and
-``scripts/agent/check_numbers.py`` checks that it is. Each file ends with a
+Documents copy every number they quote from these files, and
+``scripts/agent/check_numbers.py`` checks this. Each file ends with a
 line naming the runs, tag, commit, and data hash it came from (SPEC section
 17). The output has no timestamps, so regenerating it from the same database
 gives the same bytes.
@@ -206,7 +206,7 @@ def _values(images: Sequence[dict[str, Any]], column: str) -> list[float]:
 
 
 def headline(data: RunTables, config: TablesConfig) -> str:
-    """Per-image metrics across the out-of-fold images, with bootstrap intervals."""
+    """Return the headline table of metrics across the out-of-fold images, with intervals."""
     d = config.decimals
     level = round(config.ci_level * 100)
     rows = []
@@ -239,7 +239,7 @@ def headline(data: RunTables, config: TablesConfig) -> str:
 
 
 def per_image(data: RunTables, config: TablesConfig) -> str:
-    """Every out-of-fold image with its fold and metrics."""
+    """Return the table of every out-of-fold image with its fold and metrics."""
     d = config.decimals
     columns = [c for c, _ in HEADLINE_METRICS if c != "accuracy"] + [c for c, _ in WIDTH_METRICS]
     labels = dict(HEADLINE_METRICS + WIDTH_METRICS)
@@ -255,7 +255,7 @@ def per_image(data: RunTables, config: TablesConfig) -> str:
 
 
 def per_fold(data: RunTables, config: TablesConfig) -> str:
-    """Each fold's test images, threshold, training length, and thin/thick edge."""
+    """Return the table of each fold's test images, threshold, epochs, and thin edge."""
     d = config.decimals
     rows = [
         [
@@ -304,7 +304,7 @@ def _edge_note(data: RunTables, decimals: int) -> str:
 
 
 def thin_thick(data: RunTables, config: TablesConfig) -> str:
-    """Sensitivity on thin and thick vessel skeleton pixels."""
+    """Return the table of sensitivity on thin and thick vessel skeleton pixels."""
     d = config.decimals
     level = round(config.ci_level * 100)
     pixels = {
@@ -343,7 +343,7 @@ def thin_thick(data: RunTables, config: TablesConfig) -> str:
 
 
 def calibration(data: RunTables, config: TablesConfig) -> str:
-    """The pooled reliability table and Brier score over every out-of-fold FOV pixel."""
+    """Return the pooled reliability table and Brier score over out-of-fold FOV pixels."""
     d = config.decimals
     table = data.evaluation["reliability"]
     edges = table["edges"]
@@ -368,7 +368,7 @@ def calibration(data: RunTables, config: TablesConfig) -> str:
 
 
 def pathology(data: RunTables, config: TablesConfig) -> str:
-    """Images with abnormalities against the rest, described per image with no test."""
+    """Return the table of abnormal images against the rest, described with no test."""
     d = config.decimals
     abnormal = [i for i in data.images if i["has_abnormality"]]
     others = [i for i in data.images if not i["has_abnormality"]]
@@ -414,7 +414,7 @@ def _minutes(start: str, end: str) -> int:
 
 
 def provenance(data: RunTables, config: TablesConfig) -> str:
-    """Where the run came from: code, data, hardware, and time."""
+    """Return the table of the run's code, data, hardware, and timing."""
     run = data.run
     code = data.evaluation["code"]
     rows = [
@@ -438,7 +438,7 @@ def provenance(data: RunTables, config: TablesConfig) -> str:
 
 
 def dataset(conn: sqlite3.Connection, config: TablesConfig) -> str:
-    """The labeled DRIVE images and their within-FOV vessel fraction (SPEC section 4)."""
+    """Return the table of labeled DRIVE images and their within-FOV vessel fraction."""
     d = config.decimals
     rows = conn.execute(
         "SELECT fov_pixels, vessel_fraction_in_fov FROM images "

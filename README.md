@@ -8,18 +8,17 @@
 A small neural network (a U-Net) that marks the blood vessels in color
 photographs of the back of the eye, trained and tested on the public DRIVE
 dataset. It is a learning project on public data and is not for clinical use.
-Every image is scored by a model that never saw it during training, and every
-number here is copied from tables generated from the recorded run. The model
+Every image is scored by a model that did not train on it. The model
 finds the wide vessels well and misses many of the finest ones.
 
 ![DRIVE image 22: the fundus photograph, the hand-drawn vessels, the model's vessels, and a map of its errors](figures/hero.png)
 
-*Image 22 is shown because its score is the closest to the median of the 20
-images, not because it is a good example. In the error map, gray is a vessel
+*Image 22 is shown because its Dice is the closest to the median of the 20
+images. In the error map, gray is a vessel
 found, orange a false vessel, and blue a missed vessel.*
 
 - Dice overlap with the hand-drawn vessels: 0.794 (95% CI 0.759 to 0.818),
-  the mean over 20 images, each scored by a model that did not train on it.
+  the mean over 20 out-of-fold images.
 - Area under the precision-recall curve: 0.886 (95% CI 0.849 to 0.909).
 - Sensitivity on thin vessels is 0.564, against 0.951 on thick ones.
 
@@ -72,8 +71,7 @@ abnormalities.*
 Image 34 is the clear failure, with a Dice of 0.510, where every other image
 scores at least 0.720. A large bright area surrounds its optic disc, and the
 model misses many wide vessels that cross it. It also marks a thin false arc
-along the edge of the FOV. Image 34 is not on the official list of images with
-abnormalities, and this project does not guess at a cause. Image 23, the next
+along the edge of the FOV. This project does not guess at a cause. Image 23, the next
 lowest, has most of its errors in the lower half, where the background has a
 visible texture that the model marks as vessel.
 

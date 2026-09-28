@@ -29,8 +29,7 @@ Author: Nick Melamed. Code license: MIT. The data has its own terms.
 
 ## Intended use
 
-Research and learning. The model shows how vessel segmentation, its
-evaluation, and its governance fit together on a small public dataset.
+Research and learning on a small public dataset.
 
 ## Out-of-scope uses
 
@@ -127,7 +126,7 @@ redistributed here. The model comes from one screening program in one country
 and would carry that population's and camera's characteristics into any other
 setting. Its main error, missing thin vessels, is the kind that can hide
 findings, so it should not be presented as an aid to screening or to any
-clinical decision. It is a learning project, and its results are reported with their weaknesses.
+clinical decision.
 
 ## Anomaly module
 
