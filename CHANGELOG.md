@@ -35,13 +35,24 @@ All notable changes to this project are documented here. The format follows
 - An `evaluation` config section for the reliability bins and the thin/thick quantile.
 - SQL queries 01 (fold summary), 02 (worst images), 03 (variant comparison), and 05 (threshold log).
 - Hypothesis property tests for the metrics, and `make mutate` now covers `metrics.py`.
+- `configs/reporting.yaml` for the reported hardware, table rounding and bootstrap settings, and figure colors.
+- `make mark-reported RUN=<run_id>`: marks a run reported only after checking its commit, tag, hardware, evaluation, checkpoints, and the leakage audit.
+- `make snapshot TAG=<version>`: exports the reported runs, metrics only, to `results/release/`.
+- `make tables`: Markdown tables in `results/tables` from the reported runs, with bootstrap intervals and each table's source run.
+- `make figures`: the hero, best and worst, training curve, reliability, and thin and thick figures, with a sidecar naming each figure's run and images.
+- `make presentation`: the repository preview image.
+- The first reported run, the baseline trained from `v0.1.0-rc.1`, with its tables and figures.
+- The README results, clinical data, governance, reproduce, and limitations sections, and the first model card.
 
 ### Changed
 
 - `/scratch-train` runs on synthetic data only.
+- The project title is "Retinal vessel segmentation on DRIVE".
+- The smoke test also writes the tables of its run.
 
 ### Fixed
 
 - `set_seed` now seeds Keras, so models built after the same seed start from the same weights.
 - `make verify-checkpoints` fails on an unfinished run unless `UNFINISHED=1` is set, so a partial run can no longer pass.
 - `make evaluate` rewrites a run's manifest from the database, so a crash after the run finished cannot leave `finished_at` missing.
+- The Colab runner sets `MPLBACKEND=Agg`, since Colab's inline plotting backend stopped TensorFlow from importing.

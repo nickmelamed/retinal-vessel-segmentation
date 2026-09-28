@@ -387,3 +387,117 @@ folds are complete. The smoke test compares its two training runs, each in
 its own process, and requires identical thresholds, validation Dice, and
 per-image Dice. `/scratch-train` no longer trains on the real DRIVE images,
 so no held-out result reaches a database during development.
+
+## D-022 Phase 4 reporting conventions (2026-09-27)
+
+The owner settled these while planning phase 4.
+
+The first reported baseline run trains from the tag `v0.1.0-rc.1` on
+`0452dba`, the phase 3 merge, which already holds everything training and
+evaluation need. `v0.1.0` goes later on the commit that finishes the
+documents. That commit descends from the rc, so the run's commit can be
+reached from the release tag (docs/CONTRIBUTING.md). A fix needed before
+the run finishes means a new commit, `v0.1.0-rc.2`, and a fresh run. A run
+is never patched.
+
+Settings for presenting results live in `configs/reporting.yaml`, with its
+own strict model, instead of in a section of the variant configs. Each run
+stores its variant config, and the rc run's stored config must keep
+validating for `evaluate` and resume, so the variant `Config` does not
+change in this phase.
+
+Nothing set `runs.is_reported` before this phase. `make mark-reported
+RUN=<id>` sets it only when all of these hold. The run finished every fold
+from a clean, tagged commit, on the GPU and platform the reporting config
+names (Tesla T4 on Colab, D-013). Every out-of-fold image is evaluated,
+and `evaluation.json` was written by a clean checkout of the run's own
+commit. The checkpoints match `fold_status`, and the leakage audit returns
+no rows. Every failed check is listed at once, and nothing changes on
+failure.
+
+`make snapshot TAG=<version>` writes `results/release/experiments_<tag>.db`
+with the full schema, every row of `images`, and the rows of reported runs
+from each table that has a `run_id`. A table in neither group is refused,
+so a new table is placed on purpose. Each run's `evaluation.json` is copied
+beside it, since the reliability table and the fold edges live only there.
+Foreign keys must resolve and the leakage audit must be empty before the
+snapshot is kept, and an existing snapshot is never replaced.
+
+`make tables` and `make figures` read reported runs only, from the database
+and each run's `evaluation.json`, whose thresholds must match the database.
+Intervals are percentile bootstraps of the mean over images, 10,000
+resamples with a fixed seed, and every metric of a run uses the same image
+draws. The R report in phase 8 recomputes them, and the two should agree
+up to resampling noise. Numbers are printed with a fixed count of decimals
+so that documents can copy them exactly. Every table file and every figure
+sidecar names the runs, tag, commit, and data hash it came from, and
+regenerating either gives the same bytes. Two reported runs of one variant
+are refused until phase 5 decides how rerun variance is tabulated. The
+figures rethreshold the saved probabilities and require the stored Dice,
+so no figure can show a prediction other than the one that was scored. A
+figure over the pre-commit hook's 1 MB limit is an error, and the layout
+shrinks instead of the limit rising.
+
+The thin and thick bins keep the per-fold quantile edge of D-021. SPEC
+section 11 names a bar chart for them. The figure is a strip chart instead,
+every image as a point with the mean and its interval, since with 20 images
+a bar would hide the spread and the image 34 outlier. The
+per-fold table, the thin and thick table, and the chart say plainly
+whether the folds set different edges.
+
+The README carries no coverage badge in v0.1.0. CI prints coverage but
+publishes nothing a badge could read, and publishing it needs either a
+third-party service or a CI job with write access. Phase 10 revisits it.
+
+The first Colab session could not import TensorFlow. Colab sets
+`MPLBACKEND` to its inline backend, which the locked environment does not
+include, and Keras imports matplotlib as TensorFlow loads. The runner
+notebook now sets `MPLBACKEND=Agg` before any cell runs uv. No project code
+changed, so the run on the rc tag stays reportable. The exception to the
+new-rc rule above is narrow. It covers only the notebook cell that names the
+tag and the plotting backend, which change no computation. Any environment
+variable that can change what TensorFlow computes, such as
+`TF_CUDNN_DETERMINISTIC`, `TF_XLA_FLAGS`, `TF_ENABLE_ONEDNN_OPTS`, or
+`CUDA_VISIBLE_DEVICES`, needs a new rc and a fresh run, as does any change to
+what the checkout contains.
+
+The owner added SPEC section 4's allowance to the project rule against data
+in git, which now permits a few example images in committed figures with the
+dataset's attribution. The committed figures show DRIVE images 21, 22, 23, 34, and 37
+under that allowance, and docs/DATA.md says the same.
+
+The evaluated-run test fixture moved from `tests/unit/test_evaluate.py` to
+`tests/fixtures/evaluated_run.py`, taking two setup assertions with it,
+so the reporting, snapshot, and table tests can share it. The Stop hook
+counts assertions per file against `main`, so it flagged the move as a
+weakened test. The owner approved the move, and it reached `main` on its
+own in PR #8.
+
+The reported run is `20260928T013730Z-4f5d08`, trained on a Colab Tesla
+T4 with deterministic ops on. No op raised an unimplemented-determinism
+error. Each fold logged one `meta_optimizer.cc:967] layout failed:
+INVALID_ARGUMENT` line from TensorFlow's graph optimizer, which could not
+rewrite the tensor layout around the dropout ops and left that part of
+the graph as it was. The line is logged at error level, but training
+continued, every fold completed on its first attempt, and the checkpoints
+and predictions verified on the laptop. The whole run came to about
+446 MB of checkpoints, which is over the Colab extension's download limit
+of about 512 MB once the files are encoded, so the outputs came down as one zip of
+`results/` and one zip per checkpoint.
+
+The owner dropped ": a self-directed project" from the README title, since
+the repository is plainly the owner's own work. The title is now
+"Retinal vessel segmentation on DRIVE" in SPEC section 12, the README, and
+`CITATION.cff`. The first screen still says it is a learning project on
+public data.
+
+The phase 4 spec review led to a few more changes. The thin and thick chart
+marks images 25, 26, and 32 by shape and label (SPEC section 11). The hero
+image is the lower of the two middle images by Dice, chosen by rank, since
+the two are always equally far from an even-count median and a float
+comparison would let rounding choose. The provenance table reports the
+training and evaluation trees separately and counts the leakage audit's rows
+for the run. `mark-reported` compares image sets instead of counts. After the Claude review of PR #9 it also requires that the run tested every labeled DRIVE image, that its recorded deterministic ops match its config, and that its data hash matches the committed checksums. Determinism itself is a config choice, not a reporting requirement. The
+snapshot attaches its source read-only. The preview image has a sidecar, its
+layout lives in the `preview` section of `configs/reporting.yaml`, and
+`make figures` rebuilds it with the hero.

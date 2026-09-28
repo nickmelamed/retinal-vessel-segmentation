@@ -446,6 +446,20 @@ def finish_run(conn: sqlite3.Connection, run_id: str, finished_at: str) -> None:
         conn.execute("UPDATE runs SET finished_at = ? WHERE run_id = ?", (finished_at, run_id))
 
 
+def set_reported(conn: sqlite3.Connection, run_id: str) -> None:
+    """Mark ``run_id`` as reported.
+
+    The schema refuses a dirty, untagged, or unfinished run. Callers check
+    the rest first (see ``retinal_vessels.reporting``).
+    """
+    with conn:
+        updated = conn.execute(
+            "UPDATE runs SET is_reported = 1 WHERE run_id = ?", (run_id,)
+        ).rowcount
+    if updated != 1:
+        raise ValueError(f"no run {run_id} to mark reported")
+
+
 def fold_thresholds(conn: sqlite3.Connection, run_id: str) -> dict[int, float]:
     """Return ``{fold: threshold}`` for every fold of ``run_id`` with a recorded threshold."""
     rows = conn.execute(

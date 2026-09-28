@@ -1,142 +1,100 @@
-# Handoff for planning phase 4
+# Handoff for planning phase 5
 
-This note is for a new Claude Code session that will plan phase 4 (the
-v0.1.0 ship point) with the owner. Read CLAUDE.md first, then PROGRESS.md,
-then SPEC sections 2, 5, 11, 12, and 17, and D-020 and D-021 in
-docs/DECISIONS.md. Plan only, and wait for the owner's approval before
-building. Cut `phase/4-ship` from `main` once phase 3 has merged.
+This note is for a new Claude Code session that will plan phase 5 (the
+ablations and rerun variance) with the owner. Read CLAUDE.md first, then
+PROGRESS.md, then SPEC sections 5, 7, 9, 16, and 17, and D-016, D-019,
+D-020, D-021, and D-022 in docs/DECISIONS.md. Plan only, and wait for the
+owner's approval before building. Cut `phase/5-ablations` from `main` once
+phase 4 has merged and `v0.1.0` is tagged.
 
-## Where things stand (2026-09-27)
+## Where things stand (2026-09-28)
 
-Phase 3 is merged into `main` (PR #6, merge commit `869778a`) and ticked in
-PROGRESS.md. CI and the Claude review passed. Two items from that review
-were fixed on `fix/review-followups`: `evaluate` refuses non-finite or
-out-of-range probabilities, which SQLite would otherwise store as NULL, and
-query 03 pairs two runs only when their fold assignments and data hashes are
-identical. Check with `gh pr list` that that branch has merged too.
+Phase 4 is on `phase/4-ship`. Check with `gh pr list` whether its PR has
+merged, and with `git tag` whether `v0.1.0` exists. The release itself
+(`/release v0.1.0`) runs after the merge. It makes the snapshot with
+`make snapshot TAG=v0.1.0`, regenerates the tables and figures, moves the
+changelog entries, ticks phase 4 in PROGRESS.md, and asks the owner to tag.
 
-What phase 3 added:
+What phase 4 added:
 
-- `metrics.py` (protected) gained `auc_roc`, `average_precision` (reported
-  as AUC-PR), `brier`, `reliability` (a pooled `ReliabilityTable`),
-  `skeleton_radius`, `thin_edge`, and `width_sensitivity`. Everything is
-  computed on `label & fov`, so pixels outside the FOV never change a score.
-  The skeleton comes from scikit-image and the radius from OpenCV's exact
-  distance transform, and the lockfile did not change.
-- `evaluate.py` CLI (`make evaluate RUN=<run_id>`, default the latest
-  finished run). It fills `auc_roc`, `auc_pr`, `brier`, `thin_sensitivity`,
-  and `thick_sensitivity` in the existing `single` rows and writes
-  `results/<run_id>/evaluation.json`. That file holds each fold's threshold,
-  thin/thick edge, and bin pixel counts, the reliability table, and the
-  pooled Brier score. Before writing anything it requires a finished run,
-  data matching `runs.data_hash`, prediction files matching
-  `predictions/fold_<k>.sha256`, and recomputed confusion metrics equal to
-  the stored rows. A run trained from a clean tree is evaluated only from a
-  clean tree at its own commit, and `evaluation.json` records the
-  evaluating commit, dirty flag, and tag. Once the checks pass it rewrites
-  `manifest.json` from the database. Rerunning gives identical output.
-  Runs trained before phase 3 cannot be evaluated, since their stored
-  config has no `evaluation` section and they have no prediction hash
-  files. None of them is a reported run.
-- `train.py` saves predictions through `save_predictions`, which also
-  writes each fold's hash file.
-- `db.py`: `fold_thresholds`, `stored_image_metrics`, `EvaluationRecord`,
-  and `fill_evaluation` (one transaction, exactly one row per record).
-- The `evaluation` config section: `reliability_bins: 10` and
-  `thin_quantile: 0.5`. This changed the baseline config hash, which is
-  fine since no reported run exists.
-- SQL queries 01, 02, 03, and 05. The first three cover finished runs only.
-  Every row carries `is_reported`, so the phase 4 tables can keep to
-  reported runs.
-- `verify_checkpoints.py` fails on an unfinished run unless
-  `--allow-unfinished` (`make verify-checkpoints UNFINISHED=1`) is given.
-- The smoke test evaluates its run and requires the second training run,
-  in a new process, to reproduce the first exactly. It does on CPU.
-- `/scratch-train` runs on synthetic data only, and now also evaluates.
-- Hypothesis property tests in `tests/unit/test_metrics_properties.py`.
-  mutmut covers `data.py` and `metrics.py`: 737 of 768 mutants killed, and
-  the 31 survivors are equivalent (listed in commit `2d75828`).
+- The first reported run, `20260928T013730Z-4f5d08`: the baseline, trained
+  on a Colab Tesla T4 from the tag `v0.1.0-rc.1` (commit `0452dba`) with
+  deterministic ops on, and evaluated on the laptop from a clean checkout of
+  that tag. It is the only row with `is_reported = 1`.
+- `configs/reporting.yaml` with its own strict model. It is kept out of the
+  variant configs, so a run's stored config never changes when presentation
+  settings do.
+- `make mark-reported RUN=<id>` (`retinal_vessels.reporting`), which sets
+  `is_reported` only after every check in D-022 passes.
+- `make snapshot TAG=<version>`, which writes `results/release/`.
+- `make tables` (`retinal_vessels.tables`), which writes
+  `results/tables/*.md`. Documents copy every number from these files, and
+  `check_numbers.py` checks them.
+- `make figures` (`retinal_vessels.figures`) and `make presentation`
+  (`scripts/make_social_preview.py`). The figures are committed with JSON
+  sidecars.
+- The README, the first MODEL_CARD.md, REPO_SETTINGS, and D-022. The title
+  is now "Retinal vessel segmentation on DRIVE", at the owner's request.
 
-No reported run exists yet, and no number from any run may appear in a
-document until it comes from a generated table (rule 2).
+The main results, in `results/tables`, are a mean Dice of 0.794 and much
+lower sensitivity on thin vessels than on thick ones. Image 34 is the one
+clear failure. Every fold set the same thin/thick edge.
 
-## What phase 4 must deliver
+## What phase 5 must deliver
 
-The phase 4 line in PROGRESS.md: reported baseline runs from a clean,
-tagged tree, then `make snapshot` and `make tables`, the hero,
-best/worst, training-curve, reliability, and thin/thick figures, the README
-first screen and its early sections, the first MODEL_CARD.md, badges, the
-social preview image, and `docs/REPO_SETTINGS.md`. It ends with a check of
-every document against section 2's rules, and then asking the owner to tag
-`v0.1.0`.
-
-The first reported run happens on Colab (`/colab-run`). After downloading,
-check out the run's tagged commit with a clean tree on the laptop, then run
-`make verify-checkpoints` and `make evaluate`.
+The PROGRESS.md line: `no_clahe` and `dice_only` runs, query 03, and a
+rerun-variance measurement. Each ablation is a full 5-fold run with the
+baseline's fold assignment (SPEC section 7, D-019), on the same GPU type
+(D-013). Query 03 already pairs runs only when their fold assignments and
+data hashes match. The R paired tests come in phase 8, so phase 5 reports
+the paired per-image deltas descriptively.
 
 ## Decisions to raise with the owner
 
-Raise these at the start of planning, before any other phase 4 work.
+Raise these before any other phase 5 work.
 
-- The first Colab session still has to confirm that `COLAB_RELEASE_TAG` is
-  set (the notebook prints it), that a T4 is assigned, and that
-  `enable_op_determinism` raises no unimplemented-determinism error on the
-  GPU for these ops. If it raises, deciding what to do is the owner's call.
-- A reported run needs a tagged commit, and `v0.1.0` is meant to mark the
-  finished ship point. Which tag should the reported baseline run use, for
-  example a pre-release tag such as `v0.1.0-rc.1`?
-- The format and location of `make tables` output (markdown under
-  `results/tables/`, each with its run ids per section 17), and whether the
-  reliability and thin/thick figures read `evaluation.json` or the
-  database. `check_numbers.py` starts checking documents once
-  `results/tables` exists.
-- `make snapshot` (`scripts/snapshot_db.py`, which exports reported runs to
-  `results/release/`, metrics only) is not built yet. Decide what it
-  exports.
-- Skeleton radii take a few discrete values (1, about 1.41, 2, about 2.24,
-  and so on), and each fold's edge snaps to one of them, so folds on the
-  real data may end up with different edges. Then "thin" means a different
-  set of vessels in each fold. `evaluation.json` records every fold's edge.
-  The thin/thick chart and the README must state the edges, and say plainly
-  if they differ. Raised by the Claude review of PR #6.
-- Figures need a plotting module (`retinal_vessels.figures`, SPEC section
-  11). Load the dataviz skill before writing chart code.
+- The configs `no_clahe.yaml` and `dice_only.yaml` are new files, so the
+  ablation runs need a new tagged commit. Which tag should they use, for
+  example `v0.2.0-rc.1`? The baseline trained from `v0.1.0-rc.1`. The
+  training code has not changed since, but the ablations would then compare
+  runs from different commits. One option is to rerun the baseline at the
+  new tag too, which also gives one rerun-variance sample.
+- `make tables` refuses two reported runs of one variant (D-022), since a
+  document could not tell which to quote. Rerun variance needs at least two
+  runs of the baseline. Decide how they are recorded and tabulated: for
+  example, a headline from one designated run plus a separate rerun table,
+  or a way to mark which run documents quote.
+- How many reruns, with which seeds. SPEC section 17 asks for the measured
+  variance with the same seed. On the T4 with deterministic ops on, the
+  same seed may give identical numbers, which is itself worth reporting.
+  The top-level seed also drives the weights and patches, so a different
+  seed measures seed variance instead. The two answer different questions.
+- Whether the ablation tables and figures change the README now, or wait
+  for the R report in phase 8.
 
 ## Working notes
 
-- Protected files trigger an approval prompt, which is expected. They
-  include `metrics.py`, `schema.sql`, the Makefile, lockfiles, CI, hooks,
-  and docs/SPEC.md (see `.claude/protected-paths`). Edit them with the Edit
-  tool, never a shell script. `ruff format` from the shell rewrites
-  protected files too, so run `ruff format --check` on them and fix them
-  with Edit.
-- Write commit messages to a scratch file and commit with `git commit -F`.
-  The subject is at most 72 characters. The allowed types are `feat`,
-  `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, and
-  `exp`.
-- Running one test file with `pytest` fails the 85% coverage floor. Use
-  `--no-cov` for partial runs, or `make test` for the full suite. Add
-  `-p no:warnings` to hide TensorFlow's `gast` deprecation noise.
-- Pytest treats `ResourceWarning` as an error. Open PIL images with `with`,
-  and close SQLite connections with `contextlib.closing`.
-- Anything that calls a CLI's `main()` in process must restore the root
-  logger afterwards (see `tests/unit/test_evaluate.py`).
-- Tests that call a CLI must pass `--db` and the output directories into
-  `tmp_path` or the synthetic data root.
-- `tests/unit/test_evaluate.py` builds a finished run from synthetic data
-  and fake probabilities without TensorFlow. Reuse its fixture for any test
-  that needs an evaluated run.
-- Keras 3 seeds weights from its own generator, and `set_seed` handles it.
-  Any new seeding goes through `set_seed`.
-- NumPy 2 compares a float32 array with a Python float in float32.
-  Threshold with `metrics.binarize`, never `prob >= t`.
-- Sums of fractions can round just above 1, which the schema's CHECK
-  constraints reject. Divide once at the end, as `average_precision` does.
-- On macOS, OpenCV's thread pool crashes a forked process. `make mutate`
-  loads `tests/fixtures/single_thread_opencv.py` to avoid it. Anything else
-  that forks after using OpenCV needs the same.
-- In zsh, `$VAR` holding several arguments is not word-split. Use an array
-  or `xargs`.
+- Use `/colab-run` for the Colab session and `/report-run` for bringing
+  the run onto the laptop, verifying it, evaluating it at its tag, and
+  marking it reported. Both carry what the first reported run needed,
+  including the extension's download limit and the MPLBACKEND fix.
+- Each fold logs `meta_optimizer.cc:967] layout failed` at error level. It
+  is harmless (D-022).
+- Evaluation needs a clean tree at the run's tag. Stash any local notebook
+  edits first, and pop them afterwards. The owner's edits from the rc.1
+  session are in `git stash list`, and nothing needs them.
+- The old development database is at `results/dev_experiments.db`. The live
+  `results/experiments.db` holds the Colab run.
+- The Stop hook counts assertions per file against `main`. Moving tests
+  between files trips it even when nothing is weakened. Ask the owner, and
+  land the move on `main` first, as PR #8 did.
+- `make figures` fails on any PNG over the hook's 1 MB limit. Shrink the
+  layout, never the limit. `best_worst.png` is the largest, at 763 KB.
+- The tests for the reporting code share the `finished` and `reportable`
+  fixtures in `tests/fixtures/evaluated_run.py`.
+- Protected files trigger an approval prompt, which is expected. Edit them
+  with the Edit tool. Write commit messages to a scratch file and commit
+  with `git commit -F`.
 - This file carries context between sessions. At the end of a session or
   phase, rewrite it for the next piece of work and replace anything out of
   date.

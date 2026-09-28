@@ -1,0 +1,47 @@
+# Settings for the reported tables and figures (SPEC sections 11, 12, 17).
+# Kept apart from the variant configs, which each run stores, so changing
+# these never changes a run's record. Every key is required.
+
+reported_runs:
+  # Every reported segmentation run uses the same GPU (D-013, SPEC section 16).
+  gpu_type: Tesla T4
+  compute_platform: colab
+
+tables:
+  decimals: 3
+  # Percentile bootstrap over images for the 95% intervals.
+  bootstrap_resamples: 10000
+  bootstrap_seed: 20260927
+  ci_level: 0.95
+
+figures:
+  dpi: 150
+  # Images shown at each end of the best/worst figure.
+  n_best_worst: 2
+  # The pre-commit hook's large-file limit, --maxkb=1024.
+  max_bytes: 1048576
+  # Colors from the default palette. False positives and false
+  # negatives use its first two categorical slots, which stay apart under
+  # every color vision deficiency. True positives are neutral ink.
+  surface: "#fcfcfb"
+  ink: "#0b0b0b"
+  secondary_ink: "#52514e"
+  muted_ink: "#898781"
+  gridline: "#e1e0d9"
+  series: "#2a78d6"
+  true_positive: "#52514e"
+  false_positive: "#eb6834"
+  false_negative: "#2a78d6"
+
+preview:
+  # GitHub's recommended size for a repository preview image.
+  width_px: 1280
+  height_px: 640
+  dpi: 100
+  title: Retinal vessel segmentation on DRIVE
+  subtitle: A learning project on public data. Not for clinical use.
+  title_size: 30
+  subtitle_size: 15
+  title_y: 0.9
+  subtitle_y: 0.82
+  hero_box: [0.03, 0.03, 0.94, 0.74]

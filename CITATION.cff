@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below, and cite the DRIVE dataset paper."
-title: "Retinal vessel segmentation on DRIVE: a self-directed project"
+title: "Retinal vessel segmentation on DRIVE"
 type: software
 authors:
   - family-names: Melamed

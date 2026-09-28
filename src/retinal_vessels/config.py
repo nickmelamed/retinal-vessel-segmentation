@@ -170,11 +170,89 @@ class Config(_Section):
         return json.dumps(self.as_dict(), sort_keys=True)
 
 
-def load_config(path: Path) -> Config:
-    """Read and validate ``path``.
+HEX_COLOR = r"^#[0-9a-f]{6}$"
 
-    Any problem raises ``ConfigError`` naming the file and every bad key.
+
+class ReportedRunsConfig(_Section):
+    """Hardware every reported run must share (SPEC section 16, D-013)."""
+
+    gpu_type: str = Field(min_length=1)
+    compute_platform: str = Field(min_length=1)
+
+
+class TablesConfig(_Section):
+    """Number formatting and bootstrap intervals for ``results/tables``."""
+
+    decimals: int = Field(ge=1)
+    bootstrap_resamples: int = Field(ge=1)
+    bootstrap_seed: int = Field(ge=0)
+    ci_level: float = Field(gt=0, lt=1)
+
+
+class FiguresConfig(_Section):
+    """Resolution, layout, and colors of the committed figures (SPEC section 11)."""
+
+    dpi: int = Field(ge=1)
+    n_best_worst: int = Field(ge=1)
+    # Figures are committed, and the pre-commit hook rejects larger files.
+    max_bytes: int = Field(ge=1)
+    surface: str = Field(pattern=HEX_COLOR)
+    ink: str = Field(pattern=HEX_COLOR)
+    secondary_ink: str = Field(pattern=HEX_COLOR)
+    muted_ink: str = Field(pattern=HEX_COLOR)
+    gridline: str = Field(pattern=HEX_COLOR)
+    series: str = Field(pattern=HEX_COLOR)
+    true_positive: str = Field(pattern=HEX_COLOR)
+    false_positive: str = Field(pattern=HEX_COLOR)
+    false_negative: str = Field(pattern=HEX_COLOR)
+
+    @model_validator(mode="after")
+    def _distinct_error_colors(self) -> "FiguresConfig":
+        # The error map is unreadable if two outcomes share a color, or one
+        # matches the background.
+        colors = [self.surface, self.true_positive, self.false_positive, self.false_negative]
+        if len(set(colors)) != len(colors):
+            raise ValueError(f"surface and error map colors must all differ, got {colors}")
+        return self
+
+
+class PreviewConfig(_Section):
+    """Layout of the repository preview image built from the hero figure."""
+
+    width_px: int = Field(ge=1)
+    height_px: int = Field(ge=1)
+    dpi: int = Field(ge=1)
+    title: str = Field(min_length=1)
+    subtitle: str = Field(min_length=1)
+    title_size: float = Field(gt=0)
+    subtitle_size: float = Field(gt=0)
+    # Heights of the two text lines and the hero's box (left, bottom, width,
+    # height), all as fractions of the canvas.
+    title_y: float = Field(gt=0, lt=1)
+    subtitle_y: float = Field(gt=0, lt=1)
+    hero_box: tuple[float, float, float, float]
+
+    @model_validator(mode="after")
+    def _box_inside_canvas(self) -> "PreviewConfig":
+        left, bottom, width, height = self.hero_box
+        if min(self.hero_box) < 0 or left + width > 1 or bottom + height > 1:
+            raise ValueError(f"hero_box must lie inside the canvas, got {self.hero_box}")
+        return self
+
+
+class ReportingConfig(_Section):
+    """Settings for presenting reported results, read from ``configs/reporting.yaml``.
+
+    Separate from ``Config`` so that changing it never changes a stored run's config.
     """
+
+    reported_runs: ReportedRunsConfig
+    tables: TablesConfig
+    figures: FiguresConfig
+    preview: PreviewConfig
+
+
+def _load[M: BaseModel](path: Path, model: type[M]) -> M:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as err:
@@ -183,8 +261,21 @@ def load_config(path: Path) -> Config:
         raise ConfigError(f"config {path} must be a mapping, got {type(raw).__name__}")
     try:
         # Validating from JSON keeps strict types while accepting YAML lists as tuples.
-        return Config.model_validate_json(json.dumps(raw))
+        return model.model_validate_json(json.dumps(raw))
     except TypeError as err:
         raise ConfigError(f"config {path} holds a value that is not plain data: {err}") from err
     except ValidationError as err:
         raise ConfigError(f"invalid config {path}:\n{err}") from err
+
+
+def load_config(path: Path) -> Config:
+    """Read and validate the variant config at ``path``.
+
+    Any problem raises ``ConfigError`` naming the file and every bad key.
+    """
+    return _load(path, Config)
+
+
+def load_reporting_config(path: Path) -> ReportingConfig:
+    """Read and validate the reporting config at ``path``, like :func:`load_config`."""
+    return _load(path, ReportingConfig)

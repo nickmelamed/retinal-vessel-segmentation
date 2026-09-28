@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from retinal_vessels.config import load_config
+from retinal_vessels.config import ReportedRunsConfig, load_config
 from retinal_vessels.data import Fold, Sample, make_folds
 from retinal_vessels.datasets.drive import load_drive
 from retinal_vessels.db import (
@@ -37,6 +37,7 @@ from retinal_vessels.provenance import (
     RunManifest,
     check_or_write_checksums,
     data_hash,
+    sha256_file,
 )
 from retinal_vessels.train import OutputDirs, save_predictions
 
@@ -54,6 +55,8 @@ ENV = {
     "compute_platform": "local",
 }
 EVALUATED = "auc_roc, auc_pr, brier, thin_sensitivity, thick_sensitivity"
+REQUIRED = ReportedRunsConfig(gpu_type="Tesla T4", compute_platform="colab")
+TAG = "v0.1.0-rc.1"
 # The fixture's run trained from a clean tree at this commit.
 CODE = GitState(commit="c0ffee", dirty=False, tag=None)
 
@@ -75,6 +78,11 @@ class Finished:
         return self.conn.execute(
             f"SELECT image_id, {EVALUATED} FROM per_image_metrics ORDER BY image_id"
         ).fetchall()
+
+    @property
+    def checksums(self) -> Path:
+        """The synthetic data's checksum manifest, which the run's data hash matches."""
+        return self.db.parent / "CHECKSUMS.sha256"
 
     def sample(self, image_id: str) -> Sample:
         return next(s for s in self.samples if s.image_id == image_id)
@@ -152,3 +160,28 @@ def finished(synthetic_data_root: Path, tmp_path: Path) -> Iterator[Finished]:
     finish_run(conn, RUN_ID, T1)
     yield Finished(conn, db, samples, report, dirs, folds, probabilities)
     conn.close()
+
+
+def write_checkpoints(finished: Finished) -> None:
+    for fold in finished.folds:
+        path = finished.dirs.checkpoint(RUN_ID, fold.number)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(f"weights {fold.number}".encode())
+        with finished.conn:
+            finished.conn.execute(
+                "UPDATE fold_status SET checkpoint_sha256 = ? WHERE run_id = ? AND fold = ?",
+                (sha256_file(path), RUN_ID, fold.number),
+            )
+
+
+@pytest.fixture
+def reportable(finished: Finished) -> Finished:
+    """The fixture's run as if trained on a Colab T4 from a tagged commit, then evaluated."""
+    with finished.conn:
+        finished.conn.execute(
+            "UPDATE runs SET git_tag = ?, gpu_type = ?, compute_platform = ? WHERE run_id = ?",
+            (TAG, REQUIRED.gpu_type, REQUIRED.compute_platform, RUN_ID),
+        )
+    write_checkpoints(finished)
+    finished.evaluate()
+    return finished

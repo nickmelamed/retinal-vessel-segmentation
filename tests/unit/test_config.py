@@ -4,10 +4,10 @@ from typing import Any
 import pytest
 import yaml
 
-from retinal_vessels.config import Config, ConfigError, load_config
+from retinal_vessels.config import Config, ConfigError, load_config, load_reporting_config
 
 CONFIGS = Path(__file__).resolve().parents[2] / "configs"
-NON_CV_CONFIGS = {"final", "external"}
+NON_CV_CONFIGS = {"final", "external", "reporting"}
 
 
 def write(tmp_path: Path, data: Any) -> Path:
@@ -32,7 +32,8 @@ def test_shipped_configs_load(name: str) -> None:
 def test_every_cv_variant_shares_one_fold_seed() -> None:
     # SPEC section 7 pairs per-image results across variants, which only
     # works if every variant trains and tests on the same folds. The frozen
-    # model and external validation configs have no folds (section 5).
+    # model and external validation configs have no folds (section 5), and
+    # the reporting config is not a variant.
     paths = [p for p in sorted(CONFIGS.glob("*.yaml")) if p.stem not in NON_CV_CONFIGS]
     configs = [load_config(path) for path in paths]
     assert len(configs) >= 2
@@ -174,3 +175,71 @@ def test_config_is_immutable() -> None:
     config = load_config(CONFIGS / "baseline.yaml")
     with pytest.raises(ValueError, match="frozen"):
         config.seed = 1  # type: ignore[misc]
+
+
+@pytest.fixture
+def reporting() -> dict[str, Any]:
+    loaded: dict[str, Any] = yaml.safe_load((CONFIGS / "reporting.yaml").read_text())
+    return loaded
+
+
+def test_shipped_reporting_config_loads() -> None:
+    config = load_reporting_config(CONFIGS / "reporting.yaml")
+    assert config.reported_runs.gpu_type == "Tesla T4"
+    assert config.tables.ci_level == 0.95
+
+
+@pytest.mark.parametrize(
+    ("section", "key"),
+    [
+        (None, "tables"),
+        ("reported_runs", "gpu_type"),
+        ("tables", "bootstrap_seed"),
+        ("figures", "false_negative"),
+        (None, "preview"),
+        ("preview", "hero_box"),
+    ],
+)
+def test_reporting_rejects_missing_key(
+    tmp_path: Path, reporting: dict[str, Any], section: str | None, key: str
+) -> None:
+    del (reporting if section is None else reporting[section])[key]
+    with pytest.raises(ConfigError, match=key):
+        load_reporting_config(write(tmp_path, reporting))
+
+
+def test_reporting_rejects_unknown_key(tmp_path: Path, reporting: dict[str, Any]) -> None:
+    reporting["figures"]["palette"] = "rainbow"
+    with pytest.raises(ConfigError, match="palette"):
+        load_reporting_config(write(tmp_path, reporting))
+
+
+@pytest.mark.parametrize(
+    ("section", "key", "value"),
+    [
+        ("tables", "decimals", 0),
+        ("tables", "ci_level", 1),
+        ("tables", "bootstrap_resamples", 0),
+        ("figures", "dpi", 0),
+        ("figures", "series", "blue"),
+        ("figures", "series", "#2A78D6"),
+        ("reported_runs", "gpu_type", ""),
+        ("preview", "title_y", 1),
+        ("preview", "width_px", 0),
+        ("preview", "hero_box", [0.5, 0.0, 0.6, 0.5]),
+    ],
+)
+def test_reporting_rejects_bad_value(
+    tmp_path: Path, reporting: dict[str, Any], section: str, key: str, value: Any
+) -> None:
+    reporting[section][key] = value
+    with pytest.raises(ConfigError, match=key):
+        load_reporting_config(write(tmp_path, reporting))
+
+
+def test_reporting_rejects_error_colors_that_collide(
+    tmp_path: Path, reporting: dict[str, Any]
+) -> None:
+    reporting["figures"]["false_positive"] = reporting["figures"]["false_negative"]
+    with pytest.raises(ConfigError, match="must all differ"):
+        load_reporting_config(write(tmp_path, reporting))

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from retinal_vessels.db import connect, create_schema
-from tests.fixtures.evaluated_run import finished  # noqa: F401 (shared fixture)
+from tests.fixtures.evaluated_run import finished, reportable  # noqa: F401 (shared fixtures)
 from tests.fixtures.synthetic_drive import write_synthetic_drive
 
 

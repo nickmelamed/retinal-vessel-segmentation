@@ -18,7 +18,7 @@ from contextlib import closing
 from pathlib import Path
 
 from retinal_vessels.db import connect
-from retinal_vessels.provenance import sha256_file
+from retinal_vessels.reporting import checkpoint_problems
 from retinal_vessels.train import OutputDirs
 from retinal_vessels.utils import setup_logging
 
@@ -84,17 +84,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     dirs = OutputDirs(results=REPO / "results", models=args.models_dir)
-    problems = 0
-    for fold, expected in folds:
-        path = dirs.checkpoint(run_id, fold)
-        if not path.is_file():
-            logger.error("fold %d: checkpoint missing at %s", fold, path)
-            problems += 1
-        elif sha256_file(path) != expected:
-            logger.error("fold %d: checksum mismatch for %s", fold, path)
-            problems += 1
+    with closing(connect(args.db)) as conn:
+        problems = checkpoint_problems(conn, run_id, dirs)
+    for problem in problems:
+        logger.error("%s", problem)
     if problems:
-        logger.error("run %s: %d of %d checkpoints failed", run_id, problems, len(folds))
+        logger.error("run %s: %d of %d checkpoints failed", run_id, len(problems), len(folds))
         return 1
     logger.info("run %s: %d checkpoints match the database", run_id, len(folds))
     return 0
