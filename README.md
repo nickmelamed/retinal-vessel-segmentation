@@ -21,7 +21,8 @@ vessel.*
 - Dice overlap with the hand-drawn vessels: 0.794 (95% CI 0.759 to 0.818),
   the mean over 20 out-of-fold images.
 - Area under the precision-recall curve: 0.886 (95% CI 0.849 to 0.909).
-- Sensitivity on thin vessels is 0.564, against 0.951 on thick ones.
+- Sensitivity on thin vessels is 0.564 (95% CI 0.513 to 0.612), against 0.951
+  (0.897 to 0.984) on thick ones.
 
 A results site with the statistical report is in progress (see
 [In progress](#in-progress)).
@@ -52,8 +53,8 @@ Intervals are percentile bootstraps of the mean over the 20 images. The full
 tables, with SD and every image, are in [results/tables](results/tables).
 
 Accuracy looks high because most of the FOV is background. Vessels cover
-0.125 of the FOV pixels, so predicting no vessel anywhere would already score
-a mean accuracy of 0.875 on these images. For the same reason AUC-ROC is
+0.125 of all FOV pixels, and predicting no vessel anywhere would already score
+a mean accuracy of 0.875 over these images. For the same reason AUC-ROC is
 flattered by the many easy background pixels, and AUC-PR, which ignores true
 negatives, is the more informative of the two.
 
@@ -175,14 +176,11 @@ can be reported, and only reported runs reach the tables and figures. Each
 table and figure names the run, commit, and data hash it came from.
 
 The leakage audit (`sql/queries/04_leakage_audit.sql`) returns a row for any
-image that holds two roles in one fold or is a test image in two folds. On
-the current database it returns zero rows. Its tests require zero rows for
-valid folds and a row for each deliberate leak, and reporting a run is refused
-while it returns any.
-
-```text
-04_leakage_audit rows: 0
-```
+image that holds two roles in one fold or is a test image in two folds. For
+the reported run it returns 0 rows, as recorded in the generated
+[provenance table](results/tables/provenance.md). Its tests require zero rows
+for valid folds and a row for each deliberate leak, and reporting a run is
+refused while it returns any.
 
 The tests use synthetic images only. They cover the metrics on hand-worked
 examples, the folds, resuming an interrupted run, and the reporting checks,
