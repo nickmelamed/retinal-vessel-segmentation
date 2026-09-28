@@ -79,6 +79,11 @@ class Finished:
             f"SELECT image_id, {EVALUATED} FROM per_image_metrics ORDER BY image_id"
         ).fetchall()
 
+    @property
+    def checksums(self) -> Path:
+        """The synthetic data's checksum manifest, which the run's data hash matches."""
+        return self.db.parent / "CHECKSUMS.sha256"
+
     def sample(self, image_id: str) -> Sample:
         return next(s for s in self.samples if s.image_id == image_id)
 

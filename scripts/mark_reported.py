@@ -31,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--results-dir", type=Path, default=REPO / "results")
     parser.add_argument("--models-dir", type=Path, default=REPO / "models")
     parser.add_argument("--config", type=Path, default=REPO / "configs" / "reporting.yaml")
+    parser.add_argument("--checksums", type=Path, default=REPO / "data" / "CHECKSUMS.sha256")
     args = parser.parse_args(argv)
     setup_logging()
 
@@ -45,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     dirs = OutputDirs(results=args.results_dir, models=args.models_dir)
     with closing(connect(args.db)) as conn:
         try:
-            mark_reported(conn, args.run_id, required, dirs)
+            mark_reported(conn, args.run_id, required, dirs, args.checksums)
         except ReportError as err:
             logger.error("%s", err)
             return 1

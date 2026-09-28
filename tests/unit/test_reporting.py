@@ -51,19 +51,24 @@ def update_run(finished: Finished, assignment: str, value: object) -> None:
 
 def refused(finished: Finished, match: str) -> None:
     with pytest.raises(ReportError, match=match):
-        mark_reported(finished.conn, RUN_ID, REQUIRED, finished.dirs)
+        mark_reported(finished.conn, RUN_ID, REQUIRED, finished.dirs, finished.checksums)
     assert is_reported(finished) == 0
 
 
 def test_marks_a_run_that_passes_every_check(reportable: Finished) -> None:
-    assert reportability_problems(reportable.conn, RUN_ID, REQUIRED, reportable.dirs) == []
-    mark_reported(reportable.conn, RUN_ID, REQUIRED, reportable.dirs)
+    assert (
+        reportability_problems(
+            reportable.conn, RUN_ID, REQUIRED, reportable.dirs, reportable.checksums
+        )
+        == []
+    )
+    mark_reported(reportable.conn, RUN_ID, REQUIRED, reportable.dirs, reportable.checksums)
     assert is_reported(reportable) == 1
 
 
 def test_refuses_an_unknown_run(reportable: Finished) -> None:
     with pytest.raises(ReportError, match="no run other"):
-        mark_reported(reportable.conn, "other", REQUIRED, reportable.dirs)
+        mark_reported(reportable.conn, "other", REQUIRED, reportable.dirs, reportable.checksums)
 
 
 def test_refuses_an_unfinished_run(reportable: Finished) -> None:
@@ -133,6 +138,32 @@ def test_refuses_an_evaluation_from_other_code(
     refused(reportable, match)
 
 
+def test_refuses_a_run_that_never_tested_a_labeled_image(reportable: Finished) -> None:
+    # Dropping image 34 everywhere keeps the tested and evaluated sets equal
+    # and the leakage audit empty, so only the labeled-image check sees it.
+    with reportable.conn:
+        for table in ("fold_assignments", "per_image_metrics"):
+            reportable.conn.execute(
+                f"DELETE FROM {table} WHERE run_id = ? AND image_id = '34'", (RUN_ID,)
+            )
+    refused(reportable, r"never tested labeled images \['34'\]")
+
+
+def test_refuses_a_determinism_flag_the_config_did_not_ask_for(reportable: Finished) -> None:
+    update_run(reportable, "deterministic_ops = ?", 0)
+    refused(reportable, "deterministic_ops=False, but its config asked for True")
+
+
+def test_refuses_data_that_does_not_match_the_committed_checksums(reportable: Finished) -> None:
+    update_run(reportable, "data_hash = ?", "0" * 64)
+    refused(reportable, "data hash does not match the checksums")
+
+
+def test_refuses_when_the_checksums_cannot_be_read(reportable: Finished, tmp_path: Path) -> None:
+    with pytest.raises(ReportError, match="cannot read the committed checksums"):
+        mark_reported(reportable.conn, RUN_ID, REQUIRED, reportable.dirs, tmp_path / "absent")
+
+
 def test_refuses_mismatched_images_even_when_the_counts_agree(reportable: Finished) -> None:
     # Image 21 loses its test role and image 22 its metric row, so 19 images
     # are tested and 19 rows are stored, but they are not the same 19.
@@ -144,7 +175,9 @@ def test_refuses_mismatched_images_even_when_the_counts_agree(reportable: Finish
         reportable.conn.execute(
             "DELETE FROM per_image_metrics WHERE run_id = ? AND image_id = '22'", (RUN_ID,)
         )
-    problems = reportability_problems(reportable.conn, RUN_ID, REQUIRED, reportable.dirs)
+    problems = reportability_problems(
+        reportable.conn, RUN_ID, REQUIRED, reportable.dirs, reportable.checksums
+    )
     assert "18 of 19 out-of-fold images are evaluated" in problems
     assert "metric rows exist for images the run never tested: ['21']" in problems
 
@@ -161,7 +194,9 @@ def test_lists_an_unreadable_evaluation_summary(
     reportable: Finished, content: str, match: str
 ) -> None:
     (reportable.dirs.results / RUN_ID / "evaluation.json").write_text(content)
-    problems = reportability_problems(reportable.conn, RUN_ID, REQUIRED, reportable.dirs)
+    problems = reportability_problems(
+        reportable.conn, RUN_ID, REQUIRED, reportable.dirs, reportable.checksums
+    )
     assert any(match in p for p in problems)
     refused(reportable, match)
 
@@ -207,7 +242,9 @@ def test_refuses_while_the_leakage_audit_finds_rows(reportable: Finished) -> Non
 def test_lists_every_problem_at_once(reportable: Finished) -> None:
     update_run(reportable, "git_dirty = ?", 1)
     reportable.dirs.checkpoint(RUN_ID, 1).unlink()
-    problems = reportability_problems(reportable.conn, RUN_ID, REQUIRED, reportable.dirs)
+    problems = reportability_problems(
+        reportable.conn, RUN_ID, REQUIRED, reportable.dirs, reportable.checksums
+    )
     assert len(problems) == 2
 
 
@@ -240,6 +277,8 @@ def cli_args(finished: Finished, tmp_path: Path) -> list[str]:
         str(finished.dirs.results),
         "--models-dir",
         str(finished.dirs.models),
+        "--checksums",
+        str(finished.checksums),
         "--config",
         str(config),
     ]

@@ -19,12 +19,13 @@ from pathlib import Path
 from retinal_vessels.config import ReportedRunsConfig
 from retinal_vessels.db import create_schema, fold_statuses, run_query, set_reported
 from retinal_vessels.evaluate import EVALUATION_NAME
-from retinal_vessels.provenance import sha256_file
+from retinal_vessels.provenance import data_hash, read_checksums, sha256_file
 from retinal_vessels.train import OutputDirs
 
 logger = logging.getLogger(__name__)
 
 LEAKAGE_AUDIT = "04_leakage_audit"
+DATASET = "drive"
 
 
 class ReportError(RuntimeError):
@@ -70,21 +71,40 @@ def _evaluation_problems(run_id: str, commit: str, dirs: OutputDirs) -> list[str
     return problems
 
 
+def _data_problems(data_hash_: str, checksums: Path) -> list[str]:
+    try:
+        expected = data_hash(read_checksums(checksums))
+    except (OSError, ValueError) as err:
+        return [f"cannot read the committed checksums at {checksums}: {err}"]
+    if data_hash_ != expected:
+        return [f"the run's data hash does not match the checksums in {checksums}"]
+    return []
+
+
 def reportability_problems(
-    conn: sqlite3.Connection, run_id: str, required: ReportedRunsConfig, dirs: OutputDirs
+    conn: sqlite3.Connection,
+    run_id: str,
+    required: ReportedRunsConfig,
+    dirs: OutputDirs,
+    checksums: Path,
 ) -> list[str]:
-    """Return every reason ``run_id`` cannot be reported. An empty list means it can."""
+    """Return every reason ``run_id`` cannot be reported. An empty list means it can.
+
+    ``checksums`` is the committed checksum manifest, which the run's data
+    hash must match.
+    """
     run = conn.execute(
-        "SELECT config, finished_at, git_commit, git_dirty, git_tag, gpu_type, compute_platform "
-        "FROM runs WHERE run_id = ?",
+        "SELECT config, finished_at, git_commit, git_dirty, git_tag, gpu_type, compute_platform, "
+        "deterministic_ops, data_hash FROM runs WHERE run_id = ?",
         (run_id,),
     ).fetchone()
     if run is None:
         return [f"no run {run_id} in the database"]
-    config, finished_at, commit, dirty, tag, gpu_type, platform = run
+    config, finished_at, commit, dirty, tag, gpu_type, platform, deterministic, data = run
 
     problems = []
-    n_folds = json.loads(config)["folds"]["n_folds"]
+    stored = json.loads(config)
+    n_folds = stored["folds"]["n_folds"]
     complete = [f for f, s in fold_statuses(conn, run_id).items() if s == "complete"]
     if finished_at is None or len(complete) != n_folds:
         problems.append(f"the run is not finished: {len(complete)} of {n_folds} folds complete")
@@ -97,6 +117,14 @@ def reportability_problems(
             f"the run used {gpu_type} on {platform}, and reported runs use "
             f"{required.gpu_type} on {required.compute_platform}"
         )
+    # Determinism is a config choice, so the record must match what was asked.
+    asked = stored["training"]["deterministic_ops"]
+    if bool(deterministic) != asked:
+        problems.append(
+            f"the run recorded deterministic_ops={bool(deterministic)}, "
+            f"but its config asked for {asked}"
+        )
+    problems += _data_problems(data, checksums)
 
     # Compare sets of images, since matching counts could hide a row for an
     # image the run never tested next to a missing one.
@@ -107,7 +135,7 @@ def reportability_problems(
             (run_id,),
         ).fetchall()
     )
-    stored = {
+    stored_rows = {
         (dataset, image_id): brier is not None
         for dataset, image_id, brier in conn.execute(
             "SELECT dataset, image_id, brier FROM per_image_metrics "
@@ -115,10 +143,22 @@ def reportability_problems(
             (run_id,),
         )
     }
-    evaluated = {key for key, done in stored.items() if done} & tested
+    evaluated = {key for key, done in stored_rows.items() if done} & tested
+    # SPEC section 5 gives every labeled image exactly one out-of-fold
+    # prediction. The leakage audit catches an image tested twice, and this
+    # catches one never tested.
+    labeled = set(
+        conn.execute(
+            "SELECT dataset, image_id FROM images WHERE dataset = ? AND has_labels = 1",
+            (DATASET,),
+        ).fetchall()
+    )
+    never = sorted(image_id for (_, image_id) in labeled - tested)
+    if never:
+        problems.append(f"the run never tested labeled images {never}")
     if evaluated != tested:
         problems.append(f"{len(evaluated)} of {len(tested)} out-of-fold images are evaluated")
-    untested = sorted(image_id for (_, image_id) in set(stored) - tested)
+    untested = sorted(image_id for (_, image_id) in set(stored_rows) - tested)
     if untested:
         problems.append(f"metric rows exist for images the run never tested: {untested}")
 
@@ -131,13 +171,17 @@ def reportability_problems(
 
 
 def mark_reported(
-    conn: sqlite3.Connection, run_id: str, required: ReportedRunsConfig, dirs: OutputDirs
+    conn: sqlite3.Connection,
+    run_id: str,
+    required: ReportedRunsConfig,
+    dirs: OutputDirs,
+    checksums: Path,
 ) -> None:
     """Set ``is_reported`` for ``run_id`` once every check passes.
 
     Raises ``ReportError`` listing each failed check, and changes nothing then.
     """
-    problems = reportability_problems(conn, run_id, required, dirs)
+    problems = reportability_problems(conn, run_id, required, dirs, checksums)
     if problems:
         raise ReportError(f"run {run_id} cannot be reported:\n  " + "\n  ".join(problems))
     set_reported(conn, run_id)
