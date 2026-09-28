@@ -387,3 +387,74 @@ folds are complete. The smoke test compares its two training runs, each in
 its own process, and requires identical thresholds, validation Dice, and
 per-image Dice. `/scratch-train` no longer trains on the real DRIVE images,
 so no held-out result reaches a database during development.
+
+## D-022 Phase 4 reporting conventions (2026-09-27)
+
+The owner settled these while planning phase 4.
+
+The first reported baseline run trains from the tag `v0.1.0-rc.1` on
+`0452dba`, the phase 3 merge, which already holds everything training and
+evaluation need. `v0.1.0` goes later on the commit that finishes the
+documents. That commit descends from the rc, so the run's commit can be
+reached from the release tag (docs/CONTRIBUTING.md). A fix needed before
+the run finishes means a new commit, `v0.1.0-rc.2`, and a fresh run. A run
+is never patched.
+
+Settings for presenting results live in `configs/reporting.yaml`, with its
+own strict model, instead of in a section of the variant configs. Each run
+stores its variant config, and the rc run's stored config must keep
+validating for `evaluate` and resume, so the variant `Config` does not
+change in this phase.
+
+Nothing set `runs.is_reported` before this phase. `make mark-reported
+RUN=<id>` sets it only when all of these hold. The run finished every fold
+from a clean, tagged commit, on the GPU and platform the reporting config
+names (Tesla T4 on Colab, D-013). Every out-of-fold image is evaluated,
+and `evaluation.json` was written by a clean checkout of the run's own
+commit. The checkpoints match `fold_status`, and the leakage audit returns
+no rows. Every failed check is listed at once, and nothing changes on
+failure.
+
+`make snapshot TAG=<version>` writes `results/release/experiments_<tag>.db`
+with the full schema, every row of `images`, and the rows of reported runs
+from each table that has a `run_id`. A table in neither group is refused,
+so a new table is placed on purpose. Each run's `evaluation.json` is copied
+beside it, since the reliability table and the fold edges live only there.
+Foreign keys must resolve and the leakage audit must be empty before the
+snapshot is kept, and an existing snapshot is never replaced.
+
+`make tables` and `make figures` read reported runs only, from the database
+and each run's `evaluation.json`, whose thresholds must match the database.
+Intervals are percentile bootstraps of the mean over images, 10,000
+resamples with a fixed seed, and every metric of a run uses the same image
+draws. The R report in phase 8 recomputes them, and the two should agree
+up to resampling noise. Numbers are printed with a fixed count of decimals
+so that documents can copy them exactly. Every table file and every figure
+sidecar names the runs, tag, commit, and data hash it came from, and
+regenerating either gives the same bytes. Two reported runs of one variant
+are refused until phase 5 decides how rerun variance is tabulated. The
+figures rethreshold the saved probabilities and require the stored Dice,
+so no figure can show a prediction other than the one that was scored. A
+figure over the pre-commit hook's 1 MB limit is an error, and the layout
+shrinks instead of the limit rising.
+
+The thin and thick bins keep the per-fold quantile edge of D-021. The
+per-fold table, the thin and thick table, and the chart say plainly
+whether the folds set different edges.
+
+The README carries no coverage badge in v0.1.0. CI prints coverage but
+publishes nothing a badge could read, and publishing it needs either a
+third-party service or a CI job with write access. Phase 10 revisits it.
+
+The first Colab session could not import TensorFlow. Colab sets
+`MPLBACKEND` to its inline backend, which the locked environment does not
+include, and Keras imports matplotlib as TensorFlow loads. The runner
+notebook now sets `MPLBACKEND=Agg` before any cell runs uv. No project code
+changed, so the run on the rc tag stays reportable.
+
+The evaluated-run test fixture moved from `tests/unit/test_evaluate.py` to
+`tests/fixtures/evaluated_run.py`, taking two setup assertions with it,
+so the reporting, snapshot, and table tests can share it. The Stop hook
+counts assertions per file against `main`, so it flagged the move as a
+weakened test. The owner approved the move, and it reached `main` on its
+own in PR #8.
