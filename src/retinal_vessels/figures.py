@@ -63,6 +63,8 @@ STRIP_SIZE = (5.6, 4.6)
 STRIP_SPREAD = 0.12
 MEAN_OFFSET = 0.3
 POINT_ALPHA = 0.6
+ABNORMAL_MARKER = "D"
+ABNORMAL_LABEL = "On the official abnormality list"
 # Where the diagonal's label sits, below the curve of a typical segmenter.
 CALIBRATION_LABEL_AT = 0.2
 
@@ -107,11 +109,17 @@ def error_map(
 
 
 def median_image(images: Sequence[Mapping[str, Any]]) -> str:
-    """Return the id of the image whose Dice is closest to the median, lowest id on a tie."""
+    """Return the id of the median image by Dice, ranked by Dice and then by id.
+
+    With an even count the median falls between the two middle images, which
+    are equally far from it, so the lower of the two is returned. Ranking
+    avoids comparing float distances, which could favor either one by a
+    rounding error.
+    """
     if not images:
         raise ValueError("no images to choose from")
-    median = float(np.median([i["dice"] for i in images]))
-    return str(min(images, key=lambda i: (abs(i["dice"] - median), i["image_id"]))["image_id"])
+    ranked = sorted(images, key=lambda i: (i["dice"], i["image_id"]))
+    return str(ranked[(len(ranked) - 1) // 2]["image_id"])
 
 
 def best_and_worst(images: Sequence[Mapping[str, Any]], n: int) -> tuple[list[str], list[str]]:
@@ -166,7 +174,7 @@ def _label(sample: Sample) -> np.ndarray:
 
 
 def hero(item: Drawn, data: RunTables, colors: FiguresConfig, decimals: int, dpi: int) -> Figure:
-    """Draw the image closest to the median Dice with its label, prediction, and errors."""
+    """Draw the median image by Dice with its label, prediction, and errors."""
     s = item.sample
     label = _label(s)
     fig = _new_figure(*HERO_SIZE, colors, dpi)
@@ -179,9 +187,13 @@ def hero(item: Drawn, data: RunTables, colors: FiguresConfig, decimals: int, dpi
         axes, ("Fundus image", "Ground truth", "Prediction", "Errors"), strict=True
     ):
         _image_axes(ax, title, colors)
+    which = (
+        "the lower of the two middle images by Dice"
+        if len(data.images) % 2 == 0
+        else "the median image by Dice"
+    )
     fig.suptitle(
-        f"DRIVE image {s.image_id}, out-of-fold Dice {fmt(item.dice, decimals)}, "
-        "the image closest to the median Dice",
+        f"DRIVE image {s.image_id}, out-of-fold Dice {fmt(item.dice, decimals)}, {which}",
         color=colors.ink,
     )
     fig.legend(
@@ -367,18 +379,42 @@ def thin_thick(data: RunTables, tables: TablesConfig, colors: FiguresConfig, dpi
     ax.grid(False, axis="x")
     bins = (("thin_sensitivity", "Thin vessels"), ("thick_sensitivity", "Thick vessels"))
     for x, (column, _) in enumerate(bins):
-        values = [float(i[column]) for i in data.images if i[column] is not None]
+        shown = [i for i in data.images if i[column] is not None]
+        values = [float(i[column]) for i in shown]
         # Spread in image order, so horizontal position carries no meaning.
-        offsets = np.linspace(-STRIP_SPREAD, STRIP_SPREAD, len(values))
+        offsets = x + np.linspace(-STRIP_SPREAD, STRIP_SPREAD, len(values))
+        abnormal = np.array([bool(i["has_abnormality"]) for i in shown])
         ax.plot(
-            x + offsets,
-            values,
+            offsets[~abnormal],
+            np.asarray(values)[~abnormal],
             marker="o",
             linestyle="none",
             markersize=_pt(MARKER_PX, dpi),
             color=colors.muted_ink,
             alpha=POINT_ALPHA,
         )
+        # SPEC section 11 marks the images on the official abnormality list
+        # wherever per-image results are plotted, by shape and by label.
+        ax.plot(
+            offsets[abnormal],
+            np.asarray(values)[abnormal],
+            marker=ABNORMAL_MARKER,
+            linestyle="none",
+            markersize=_pt(MARKER_PX, dpi),
+            color=colors.ink,
+        )
+        for image, at, value in zip(shown, offsets, values, strict=True):
+            if image["has_abnormality"]:
+                ax.annotate(
+                    str(image["image_id"]),
+                    (at, value),
+                    xytext=(-6, 0),
+                    textcoords="offset points",
+                    ha="right",
+                    va="center",
+                    fontsize="x-small",
+                    color=colors.ink,
+                )
         s = summarize(values, tables)
         ax.errorbar(
             x + MEAN_OFFSET,
@@ -406,6 +442,14 @@ def thin_thick(data: RunTables, tables: TablesConfig, colors: FiguresConfig, dpi
     ax.legend(
         handles=[
             Line2D([], [], marker="o", linestyle="none", color=colors.muted_ink, label="One image"),
+            Line2D(
+                [],
+                [],
+                marker=ABNORMAL_MARKER,
+                linestyle="none",
+                color=colors.ink,
+                label=ABNORMAL_LABEL,
+            ),
             Line2D([], [], marker="o", color=colors.series, label=f"Mean, {level}% CI"),
         ],
         frameon=False,

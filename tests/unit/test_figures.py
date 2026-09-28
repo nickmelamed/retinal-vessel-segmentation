@@ -12,12 +12,14 @@ from retinal_vessels import figures
 from retinal_vessels.config import load_reporting_config
 from retinal_vessels.db import set_reported
 from retinal_vessels.figures import (
+    ABNORMAL_LABEL,
     FigureError,
     best_and_worst,
     edge_note,
     error_map,
     load_history,
     median_image,
+    thin_thick,
     write_figures,
 )
 from retinal_vessels.tables import load_run
@@ -88,9 +90,19 @@ def test_median_image_with_an_odd_count() -> None:
     assert median_image(images(("a", 0.1), ("b", 0.5), ("c", 0.9))) == "b"
 
 
-def test_median_image_breaks_ties_by_id() -> None:
+def test_median_image_with_an_even_count_takes_the_lower_middle() -> None:
     # The median of 0.4 and 0.6 is 0.5, equally close to both.
     assert median_image(images(("z", 0.6), ("y", 0.4), ("x", 0.1), ("w", 0.9))) == "y"
+
+
+def test_median_image_does_not_depend_on_float_distances() -> None:
+    # The median of 0.01 and 0.03 is 0.02, and in floating point 0.03 comes
+    # out slightly closer to it, so comparing distances would pick "c".
+    assert median_image(images(("a", 0.0), ("b", 0.01), ("c", 0.03), ("d", 1.0))) == "b"
+
+
+def test_median_image_breaks_a_dice_tie_by_id() -> None:
+    assert median_image(images(("b", 0.5), ("a", 0.5), ("c", 0.1), ("d", 0.9))) == "a"
 
 
 def test_median_image_needs_images() -> None:
@@ -199,6 +211,21 @@ def test_edge_note_says_when_folds_differ(reported: Finished) -> None:
     assert "the same in every fold" in edge_note(data, 3)
     data.folds[1]["thin_edge"] += 1
     assert "differ by fold" in edge_note(data, 3)
+
+
+def test_thin_thick_marks_the_abnormal_images(reported: Finished) -> None:
+    data = load_run(reported.conn, RUN_ID, reported.dirs.results)
+    abnormal = sorted(i["image_id"] for i in data.images if i["has_abnormality"])
+    assert abnormal == ["25", "26", "32"]
+    fig = thin_thick(data, CONFIG.tables, COLORS, COLORS.dpi)
+    (ax,) = fig.axes
+    labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert ABNORMAL_LABEL in labels
+    # Each abnormal image is labeled once in each of the two bins.
+    annotations = sorted(a.get_text() for a in ax.texts if a.get_text() in abnormal)
+    assert annotations == sorted(abnormal * 2)
+    diamonds = [line for line in ax.lines if line.get_marker() == "D"]
+    assert sum(len(line.get_xdata()) for line in diamonds) == 2 * len(abnormal)
 
 
 def cli(finished: Finished, out: Path, *extra: str) -> int:
