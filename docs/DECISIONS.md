@@ -476,3 +476,14 @@ the repository is plainly the owner's own work. The title is now
 "Retinal vessel segmentation on DRIVE" in SPEC section 12, the README, and
 `CITATION.cff`. The first screen still says it is a learning project on
 public data.
+
+The phase 4 spec review led to a few more changes. The thin and thick chart
+marks images 25, 26, and 32 by shape and label (SPEC section 11). The hero
+image is the lower of the two middle images by Dice, chosen by rank, since
+the two are always equally far from an even-count median and a float
+comparison would let rounding choose. The provenance table reports the
+training and evaluation trees separately and counts the leakage audit's rows
+for the run. `mark-reported` compares image sets instead of counts. The
+snapshot attaches its source read-only. The preview image has a sidecar, its
+layout lives in the `preview` section of `configs/reporting.yaml`, and
+`make figures` rebuilds it with the hero.

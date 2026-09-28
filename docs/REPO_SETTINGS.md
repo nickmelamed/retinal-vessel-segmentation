@@ -28,9 +28,10 @@ Topics: `medical-imaging`, `image-segmentation`, `retinal-imaging`, `u-net`,
 
 ## Social preview image
 
-`make presentation` writes `figures/social_preview.png`, 1280 by 640 pixels,
-from the hero figure. Upload it under Settings, General, Social preview, and
-upload it again whenever `make figures` changes the hero.
+`make figures` writes `figures/social_preview.png`, 1280 by 640 pixels, right
+after the hero figure it is built from (`make presentation` rebuilds it
+alone). Upload it under Settings, General, Social preview, and upload it again
+whenever the hero changes.
 
 ## Badges
 
