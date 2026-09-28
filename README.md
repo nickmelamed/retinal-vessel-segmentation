@@ -13,9 +13,10 @@ finds the wide vessels well and misses many of the finest ones.
 
 ![DRIVE image 22: the fundus photograph, the hand-drawn vessels, the model's vessels, and a map of its errors](figures/hero.png)
 
-*Image 22 is shown because its Dice is the closest to the median of the 20
-images. In the error map, gray is a vessel
-found, orange a false vessel, and blue a missed vessel.*
+*Image 22 is shown because it sits at the median Dice. With 20 images the
+median falls between two images, and image 22 is the lower of the two. In the
+error map, gray is a vessel found, orange a false vessel, and blue a missed
+vessel.*
 
 - Dice overlap with the hand-drawn vessels: 0.794 (95% CI 0.759 to 0.818),
   the mean over 20 out-of-fold images.
@@ -80,15 +81,18 @@ visible texture that the model marks as vessel.
 ![Per-image sensitivity on thin and thick vessels, with the mean and its 95% CI](figures/thin_thick.png)
 
 *Sensitivity on skeleton pixels of the hand-drawn vessels, per image. Thin
-means a vessel radius of at most 1.414 px at the centerline.*
+means a vessel radius of at most 1.414 px at the centerline. Diamonds mark
+images 25, 26, and 32, which are on DRIVE's list of images with
+abnormalities.*
 
 The vessel labels are reduced to their centerlines, each centerline pixel gets
 the radius of the vessel around it, and each fold splits the pixels into thin
 and thick at the median radius of its own training and validation labels. All
 five folds set the same edge, 1.414 px, so thin means the same vessels in
 every fold. Mean sensitivity is 0.564 (95% CI 0.513 to 0.612) on thin vessels
-and 0.951 (0.897 to 0.984) on thick ones. The one image with low thick-vessel
-sensitivity is image 34.
+and 0.951 (0.897 to 0.984) on thick ones. Two images fall well below the rest
+on thick vessels, image 34 at 0.488 and image 25, one of the images with
+abnormalities, at 0.875.
 
 ### Calibration
 
@@ -145,7 +149,7 @@ README leads with Dice and AUC-PR instead of accuracy.
 Labels vary. Annotators were instructed to mark pixels they were at least 70% certain were vessel, so the edges of thin vessels are uncertain by design, and the training labels come from a single annotator. <!-- numbers: ok -->
 
 Real clinical images would need de-identification and handling under rules
-such as HIPAA. DRIVE images are already public and carry no identifiers.
+such as HIPAA. For DRIVE, no patient identifiers are published.
 
 Errors do not cost the same. A missed vessel, or a missed narrowing in later
 work, can hide something a reader needs to see, while a false vessel mostly

@@ -109,8 +109,9 @@ top bin average 0.981 but are vessel 0.915 of the time, and pixels averaging
   along the FOV edge ([figures/best_worst.png](figures/best_worst.png)). It is
   not on DRIVE's list of images with abnormalities.
 - On image 23, background texture in the lower half is marked as vessel.
-- Among the images with abnormalities, image 25 has the lowest thin-vessel
-  sensitivity of all 20, 0.268. Three images support a description only.
+- Image 25, one of the images with abnormalities, has the lowest thin-vessel
+  sensitivity of all 20, 0.268, and the second-lowest thick-vessel
+  sensitivity, 0.875. Three images support a description only.
 
 ## Limitations
 
@@ -121,8 +122,8 @@ Rerun variance with the same seed is TBD.
 
 ## Ethical considerations
 
-The data is public and carries no patient identifiers, and its images are not
-redistributed here. The model comes from one screening program in one country
+The data is public, no patient identifiers are published, and its images are
+not redistributed here. The model comes from one screening program in one country
 and would carry that population's and camera's characteristics into any other
 setting. Its main error, missing thin vessels, is the kind that can hide
 findings, so it should not be presented as an aid to screening or to any
