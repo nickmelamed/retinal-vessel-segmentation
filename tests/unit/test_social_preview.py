@@ -34,7 +34,10 @@ def restore_root_logger() -> Iterator[None]:
 @pytest.fixture
 def hero(tmp_path: Path) -> Path:
     path = tmp_path / "hero.png"
-    rgb = np.random.default_rng(0).integers(0, 255, (390, 1200, 3), dtype=np.uint8)
+    # A smooth gradient compresses like a real figure. Random noise would not,
+    # and would trip the size limit.
+    ramp = np.linspace(0, 255, 1200, dtype=np.float64)
+    rgb = np.broadcast_to(ramp[None, :, None], (390, 1200, 3)).astype(np.uint8)
     Image.fromarray(rgb).save(path)
     path.with_suffix(".json").write_text(json.dumps(LINEAGE))
     return path
@@ -77,4 +80,14 @@ def test_needs_the_hero_sidecar(hero: Path, tmp_path: Path) -> None:
     hero.with_suffix(".json").unlink()
     out = tmp_path / "social_preview.png"
     assert load_script().main(["--hero", str(hero), "--out", str(out)]) == 1
+    assert not out.exists()
+
+
+def test_refuses_a_preview_over_the_size_limit(hero: Path, tmp_path: Path) -> None:
+    config = tmp_path / "reporting.yaml"
+    text = (REPO / "configs" / "reporting.yaml").read_text()
+    config.write_text(text.replace("max_bytes: 1048576", "max_bytes: 1000"))
+    out = tmp_path / "social_preview.png"
+    args = ["--hero", str(hero), "--out", str(out), "--config", str(config)]
+    assert load_script().main(args) == 1
     assert not out.exists()

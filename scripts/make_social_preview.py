@@ -68,6 +68,13 @@ def build(hero: Path, out: Path, colors: FiguresConfig, layout: PreviewConfig) -
     ax.set_axis_off()
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, facecolor=colors.surface, metadata={"Software": None})
+    size = out.stat().st_size
+    if size > colors.max_bytes:
+        out.unlink()
+        raise ValueError(
+            f"{out.name} is {size} bytes, over the {colors.max_bytes} byte limit for "
+            "committed files. Shrink its layout rather than raising the limit."
+        )
     sidecar = json.loads(lineage.read_text(encoding="utf-8"))
     sidecar.update(
         figure=out.name, generated_by="scripts/make_social_preview.py", built_from=hero.name
@@ -87,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = load_reporting_config(args.config)
         build(args.hero, args.out, config.figures, config.preview)
-    except (ConfigError, FileNotFoundError) as err:
+    except (ConfigError, FileNotFoundError, ValueError) as err:
         logger.error("%s", err)
         return 1
     return 0
