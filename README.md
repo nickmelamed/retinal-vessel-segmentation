@@ -195,7 +195,9 @@ signal for human review, and a frozen-model audit are planned.
 
 The numbers in this README come from the tag `v0.1.0-rc.1`. The run trained
 on a Colab Tesla T4 in 35 minutes with deterministic GPU ops on, and was
-evaluated on a laptop CPU from the same tag. How much the metrics vary
+evaluated on a laptop CPU from the same tag. Release `v0.1.0` contains that
+run's metrics, without images or predictions, in
+`results/release/experiments_v0.1.0.db`. How much the metrics vary
 between reruns with the same seed is TBD.
 
 Requires [uv](https://docs.astral.sh/uv/), which installs Python from

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-28
+
 ### Added
 
 - Locked Python environment with uv, generated `requirements.txt`, and MIT license.
@@ -56,3 +58,6 @@ All notable changes to this project are documented here. The format follows
 - `make verify-checkpoints` fails on an unfinished run unless `UNFINISHED=1` is set, so a partial run can no longer pass.
 - `make evaluate` rewrites a run's manifest from the database, so a crash after the run finished cannot leave `finished_at` missing.
 - The Colab runner sets `MPLBACKEND=Agg`, since Colab's inline plotting backend stopped TensorFlow from importing.
+
+[Unreleased]: https://github.com/nickmelamed/retinal-vessel-segmentation/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/nickmelamed/retinal-vessel-segmentation/releases/tag/v0.1.0
