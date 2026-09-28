@@ -194,6 +194,8 @@ class FiguresConfig(_Section):
 
     dpi: int = Field(ge=1)
     n_best_worst: int = Field(ge=1)
+    # Figures are committed, and the pre-commit hook rejects larger files.
+    max_bytes: int = Field(ge=1)
     surface: str = Field(pattern=HEX_COLOR)
     ink: str = Field(pattern=HEX_COLOR)
     secondary_ink: str = Field(pattern=HEX_COLOR)

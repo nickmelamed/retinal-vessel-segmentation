@@ -20,6 +20,8 @@ figures:
   dpi: 150
   # Images shown at each end of the best/worst figure.
   n_best_worst: 2
+  # The pre-commit hook's large-file limit, --maxkb=1024.
+  max_bytes: 1048576
   # Colors from the validated default palette. False positives and false
   # negatives use its first two categorical slots, which stay apart under
   # every color vision deficiency. True positives are neutral ink.
