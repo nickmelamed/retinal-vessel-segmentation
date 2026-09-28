@@ -26,8 +26,18 @@ Topics: `medical-imaging`, `image-segmentation`, `retinal-imaging`, `u-net`,
 `tensorflow`, `uncertainty-quantification`, `model-governance`, `r`,
 `sqlite`, `reproducible-research`.
 
+## Social preview image
+
+`make presentation` writes `figures/social_preview.png`, 1280 by 640 pixels,
+from the hero figure. Upload it under Settings, General, Social preview, and
+upload it again whenever `make figures` changes the hero.
+
+## Badges
+
+The README shows CI, Python, license, and "not for clinical use" badges. It
+has no coverage badge, since CI prints coverage but publishes nothing a badge
+can read (D-022). Adding one means a CI change, which is revisited in phase 10.
+
 ## Added in later phases
 
-The social preview image (phase 4) is the output of
-`scripts/make_social_preview.py`, uploaded under Settings, General. The
-website field and GitHub Pages (phase 8) point at the Quarto results site.
+The website field and GitHub Pages (phase 8) point at the Quarto results site.
