@@ -116,7 +116,7 @@ top bin average 0.981 but are vessel 0.915 of the time, and pixels averaging
 ## Limitations
 
 Twenty labeled images give wide intervals, and one image can move a mean. The
-training labels come from one annotator. Annotators were asked to mark pixels they were at least 70% certain were vessel, so thin-vessel edges are uncertain in the labels themselves. <!-- numbers: ok -->
+training labels come from one annotator. Annotators were instructed to mark pixels they were at least 70% certain were vessel, so thin-vessel edges are uncertain in the labels themselves. <!-- numbers: ok -->
 The providers JPEG compressed every image, which can blur the finest vessels.
 Rerun variance with the same seed is TBD.
 

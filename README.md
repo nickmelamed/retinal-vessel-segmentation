@@ -133,8 +133,8 @@ with another.
 *Training loss and validation Dice for each fold. The dot marks the epoch
 whose checkpoint and threshold were kept.*
 
-Validation Dice levels off within about five epochs in every fold, and early
-stopping ended each fold ten epochs after its best one. The chosen thresholds
+Validation Dice levels off early in every fold, and early stopping ended each
+fold ten epochs after its best one. The chosen thresholds
 vary more than the validation Dice does, from 0.320 in fold 2 to 0.670 in fold
 4 ([per-fold table](results/tables/per_fold.md)).
 
