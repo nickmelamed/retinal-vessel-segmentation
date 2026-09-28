@@ -10,6 +10,7 @@ Source: https://drive.grand-challenge.org/ (registration required).
 Cite Staal J, Abràmoff MD, Niemeijer M, Viergever MA, van Ginneken B. *Ridge-based vessel segmentation in color images of the retina.* IEEE Transactions on Medical Imaging 23(4):501–509, 2004. doi:10.1109/TMI.2004.825627.
 
 No explicit license is published for DRIVE. Do not redistribute the images.
+Showing a few example images in figures, with attribution, is acceptable.
 
 After downloading, the files must be laid out like this:
 

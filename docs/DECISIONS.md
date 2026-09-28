@@ -453,11 +453,18 @@ The first Colab session could not import TensorFlow. Colab sets
 `MPLBACKEND` to its inline backend, which the locked environment does not
 include, and Keras imports matplotlib as TensorFlow loads. The runner
 notebook now sets `MPLBACKEND=Agg` before any cell runs uv. No project code
-changed, so the run on the rc tag stays reportable. This is the scope of the
-exception to the new-rc rule above. Settings made in the notebook session,
-such as environment variables and the cell that names the tag, are not part
-of the checked-out tree and change no computation, so they do not need a new
-rc. Any change to what the checkout contains does.
+changed, so the run on the rc tag stays reportable. The exception to the
+new-rc rule above is narrow. It covers only the notebook cell that names the
+tag and the plotting backend, which change no computation. Any environment
+variable that can change what TensorFlow computes, such as
+`TF_CUDNN_DETERMINISTIC`, `TF_XLA_FLAGS`, `TF_ENABLE_ONEDNN_OPTS`, or
+`CUDA_VISIBLE_DEVICES`, needs a new rc and a fresh run, as does any change to
+what the checkout contains.
+
+The owner added SPEC section 4's allowance to the project rule against data
+in git, which now permits a few example images in committed figures with the
+dataset's attribution. The committed figures show DRIVE images 21, 22, 23, 34, and 37
+under that allowance, and docs/DATA.md says the same.
 
 The evaluated-run test fixture moved from `tests/unit/test_evaluate.py` to
 `tests/fixtures/evaluated_run.py`, taking two setup assertions with it,
